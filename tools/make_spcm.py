@@ -14,16 +14,16 @@ PCM chip's increment, big-endian, and the channel count), then the samples in 20
 left and right sectors taking turns, 8-bit sign + magnitude (bit 7 set = positive, magnitude up
 to 126: 0xFF is the chip's loop marker), then a silent sector.
 
-The sound: mono, resampled to 22032 Hz (the PCM chip's increment 0x568: 25 minutes = 33 MB, what
-fits beside the IDKFA CD audio on an 80-minute disc) in the frequency domain (band-limited, no
+The sound: mono, resampled to 21396 Hz (the PCM chip's increment 0x540: 25 minutes = 32.5 MB, what
+fits beside the IDKFA CD audio and TNT MINI on an 80-minute disc) in the frequency domain (band-limited, no
 aliasing); one gain for all the songs so the loudest peak of them all sits just under full scale
 (the songs keep their levels against each other); TPDF dither into the 8 bits. NumPy only.
 """
 import os, sys, wave
 import numpy as np
 
-INCR = 0x568                         # the PCM chip's step: 1.0 = 0x800 = 32604 Hz
-RATE = INCR * 32604 // 2048          # 22032 Hz
+INCR = 0x540                         # the PCM chip's step: 1.0 = 0x800 = 32604 Hz
+RATE = INCR * 32604 // 2048          # 21396 Hz
 CHANNELS = 1
 SECTOR = 2048
 

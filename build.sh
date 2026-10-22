@@ -48,11 +48,11 @@ fi
 # the disc's files: the Fusion disc's, plus PLUTONIA.WAD made from your plutonia.wad (a fifth game
 # in the select menu, tools/make_game.py; README "Plutonia")
 DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fusion/." "$DISC/"
-# left off the disc to make room (README "The disc"): TNT MINI, Fusion's map-testing MAPDEV.WAD (the
+# left off the IDKFA disc to make room (README "The disc"): Fusion's map-testing MAPDEV.WAD (the
 # menu hides it) and the loose VGM folders (copies of music already inside the WADs; never read).
 # CUT="" keeps them all.
 if [ "$MUSIC" = sigil ]; then CUT="${CUT-}"           # the SIGIL disc has room for everything
-else CUT="${CUT-TNT_MINI.WAD MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
+else CUT="${CUT-MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
 for f in $CUT; do rm -rf "$DISC/$f"; done
 if [ -f "$DATA/plutonia.wad" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
