@@ -684,7 +684,7 @@ class Converter:
         # ---- the extra lumps ----------------------------------------------------------------------
         extra = []
         if sky:
-            extra.append((sky.upper(), self.sky_lump(sky.upper(), sky_depth)))
+            extra.append((sky.upper(), self.sky_lump(getattr(self, 'sky_source', {}).get(sky.upper(), sky.upper()), sky_depth)))
         texs = [p for p in plan if p[0] == 'tex']
         flats = [p for p in plan if p[0] == 'flat']
         if texs:
@@ -958,7 +958,10 @@ class Converter:
               '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % txt(endtext),
               '    endFlat = "MFLR8_3"', '\tendShowCast = 0', '\tstopFireTime = 0', '\ttitleStartPos = 0',
               '\tnoAttractDemo = 1', '}']
-        sky = 'sky%d' % ep
+        # the map's sky goes by the base game's hell sky's name: its own SKY5 / SKY6 picture under that
+        # name when it fits in the map's RAM, else the base game's SKY3 (red hell) - not SKY1
+        sky = 'sky3'
+        self.sky_source = {'SKY3': 'SKY%d' % ep}
         for i, m in enumerate(fits):
             u = umap.get(m, {})
             e = ['map "%s" "%s"' % (m, self.map_names[m]), '{', '    sky = "%s"' % sky]
