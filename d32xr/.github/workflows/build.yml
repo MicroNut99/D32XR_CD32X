@@ -1,0 +1,69 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  roms:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        makeflags: ["", "DISABLE_CDFS=1 ENABLE_FIRE_ANIMATION=1 ENABLE_DMA_SOUND=1 USE_SMALL_LUMPS=1 MIPLEVELS=4", "ENABLE_SSF_MAPPER=1 DISABLE_CDFS=1 ENABLE_DMA_SOUND=1 USE_SMALL_LUMPS=1"]
+
+    steps:
+      - uses: actions/cache@v3
+        id: devkit-cache
+        with:
+          path: /opt/toolchains
+          key: chilly-willy-devkit-4
+      - name: Install libdebuginfod1
+        run: sudo apt install -y libdebuginfod1
+      - name: Download The devkit archive
+        if: steps.devkit-cache.outputs.cache-hit != 'true'
+        run: | 
+          curl -sL --fail \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/viciious/32XDK/releases/tags/20220418" \
+          | jq -r ".assets | .[] | select(.name | test(\"chillys-sega-devkit-20220418-opt.tar.zst$\")) | .url" \
+          | xargs curl -sL --fail -H "Accept: application/octet-stream" -o "chillys-sega-devkit-20220418-opt.tar.zst"
+      - name: Unpack the devkit archive
+        if: steps.devkit-cache.outputs.cache-hit != 'true'
+        run: |
+          ls -la ./chillys-sega-devkit-20220418-opt.tar.zst && \
+          zstdcat ./chillys-sega-devkit-20220418-opt.tar.zst | sudo tar -C / -xa
+      - uses: actions/checkout@v2
+      - name: make debug MARS
+        run: |
+          dd if=/dev/zero bs=1K count=2324 of=doom32x.wad && \
+          ${{ matrix.makeflags }} make clean && ${{ matrix.makeflags }} WAD=doom32x.wad make -j debug
+      - name: make MARS
+        run: |
+          dd if=/dev/zero bs=1K count=2324 of=doom32x.wad && \
+          ${{ matrix.makeflags }} make clean && ${{ matrix.makeflags }} WAD=doom32x.wad make -j release
+      - name: readelf -S
+        run: |
+          /opt/toolchains/sega/sh-elf/bin/sh-elf-readelf -S D32XR.elf
+      - name: Print sizes
+        run: |
+          /opt/toolchains/sega/sh-elf/bin/sh-elf-gcc-nm --numeric-sort --radix=d D32XR.elf | egrep -Ei ' (B|D|T) ' | grep -v __data_start >syms && \
+          tail +2 syms | awk '{print $1}' >syms2 && \
+          paste -d " " syms syms2 | awk '{ $5 = $4 - $1 } 1' | awk '{ printf "%i %i %s\n", $1,$5,$3 }' >calc_size
+          /opt/toolchains/sega/sh-elf/bin/sh-elf-gcc-nm --print-size --size-sort --radix=d D32XR.elf >nm_size
+          awk 'NR==FNR { map[$1]=$2;next } { print match(map[$1], /[^ ]/) ? $1" "map[$1]" "$3 : $1" "$2" "$3 } ' nm_size calc_size | \
+          grep '^100' | awk '{ printf "%08x %08i %s\n", $1,$2,$3 }' | sort -n -k 2,2 | tail -n 75
+          rm syms syms2 calc_size nm_size
+      - name: .bss plus .data size
+        run: |
+          /opt/toolchains/sega/sh-elf/bin/sh-elf-readelf -S D32XR.elf | \
+          awk '{ if ($9 == "WA") { print 0"x"$7 } }' | \
+          xargs printf "%d\n" | \
+          awk '{s+=$1} END {print s}'
+      - name: bss_end
+        run: grep 'bss_end =' output.map
+      - name: Test bss_end < 0x603C000
+        run: |
+          grep 'bss_end =' output.map | grep -o '0x[0-9a-f]\+' | \
+          xargs -I{} echo "{} 0x603C000" | awk --non-decimal-data '{print($2-$1); exit($1>=$2)}'
