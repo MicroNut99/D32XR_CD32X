@@ -3,26 +3,28 @@
 
   make_spcm.py <folder with Track02.wav .. Track23.wav> <disc files folder>
 
-Track02-12 -> SIGIL/D_INTRO.PCM, D_E5M1.PCM .. D_E5M9.PCM, D_INTER.PCM
-Track13-23 -> SIGIL2/D_INTRO.PCM, D_E6M1.PCM .. D_E6M9.PCM, D_INTER.PCM
-(the WADs' spcmDirs and music lump names, tools/make_game.py; the game streams them from the
-data track through the Sega CD's PCM chip, d32xr/src-md/cd/s_spcm.c)
+Track02-12 = SIGIL's D_INTRO, D_E5M1 .. D_E5M9, D_INTER; Track13-23 = SIGIL II's D_INTRO, D_E6M1 ..
+D_E6M9, D_INTER (tools/make_sigil_cdda.sh). Only the songs SIGIL.WAD / SIGIL_II.WAD in the disc
+folder play (their DMAPINFO: title, intermission, victory, end and the maps on the disc) become
+SIGIL/<song>.PCM / SIGIL2/<song>.PCM (the WADs' spcmDirs and music lump names, tools/make_game.py;
+the game streams them from the data track through the Sega CD's PCM chip, d32xr/src-md/cd/s_spcm.c).
 
 The file format is d32xr/raw2spcm's: a 2048-byte header sector ("SPCM", the sample rate and the
 PCM chip's increment, big-endian, and the channel count), then the samples in 2048-byte sectors,
 left and right sectors taking turns, 8-bit sign + magnitude (bit 7 set = positive, magnitude up
 to 126: 0xFF is the chip's loop marker), then a silent sector.
 
-The sound: resampled to 24453 Hz (the PCM chip's increment 0x600, the rate s_spcm.c names) in the
-frequency domain (band-limited, no aliasing); one gain for all 22 songs so the loudest peak of
-them all sits just under full scale (the songs keep their levels against each other); TPDF
-dither into the 8 bits. NumPy only.
+The sound: mono, resampled to 22032 Hz (the PCM chip's increment 0x568: 25 minutes = 33 MB, what
+fits beside the IDKFA CD audio on an 80-minute disc) in the frequency domain (band-limited, no
+aliasing); one gain for all the songs so the loudest peak of them all sits just under full scale
+(the songs keep their levels against each other); TPDF dither into the 8 bits. NumPy only.
 """
 import os, sys, wave
 import numpy as np
 
-RATE = 24453
-INCR = RATE * 2048 // 32604          # 0x600
+INCR = 0x568                         # the PCM chip's step: 1.0 = 0x800 = 32604 Hz
+RATE = INCR * 32604 // 2048          # 22032 Hz
+CHANNELS = 1
 SECTOR = 2048
 
 SONGS = {'SIGIL': ['D_INTRO'] + ['D_E5M%d' % k for k in range(1, 10)] + ['D_INTER'],
@@ -36,9 +38,8 @@ def read_wav(path):
     ch, sr = w.getnchannels(), w.getframerate()
     x = np.frombuffer(w.readframes(w.getnframes()), '<i2').astype(np.float64) / 32768.0
     x = x.reshape(-1, ch)
-    if ch == 1:
-        x = np.repeat(x, 2, axis=1)
-    return x[:, :2], sr
+    x = x[:, :2].mean(axis=1, keepdims=True) if CHANNELS == 1 else (np.repeat(x, 2, axis=1) if ch == 1 else x[:, :2])
+    return x, sr
 
 
 def resample(x, sr, rate):
@@ -64,22 +65,35 @@ def to_spcm(x, gain, rng):
 
 
 def write_spcm(path, pcm):
-    n = len(pcm)
+    """raw2spcm's layout: header sector, then sectors of samples (stereo: left and right sectors
+    taking turns), then a silent sector (the player ignores the last sector)"""
+    n, ch = pcm.shape
     blocks = (n + SECTOR - 1) // SECTOR
     hdr = bytearray(SECTOR)
     hdr[0:4] = b'SPCM'
     hdr[4:6] = RATE.to_bytes(2, 'big')
     hdr[6:8] = INCR.to_bytes(2, 'big')
-    hdr[8] = 2
-    body = np.zeros((blocks, 2, SECTOR), np.uint8)              # sector by sector: left, right
-    pad = np.zeros((blocks * SECTOR, 2), np.uint8)
+    hdr[8] = ch
+    pad = np.zeros((blocks * SECTOR, ch), np.uint8)
     pad[:n] = pcm
-    body[:, 0, :] = pad[:, 0].reshape(blocks, SECTOR)
-    body[:, 1, :] = pad[:, 1].reshape(blocks, SECTOR)
+    body = np.stack([pad[:, c].reshape(blocks, SECTOR) for c in range(ch)], axis=1)
     with open(path, 'wb') as f:
         f.write(bytes(hdr))
         f.write(body.tobytes())
-        f.write(bytes(SECTOR))                                   # the silent end sector
+        f.write(bytes(SECTOR))
+
+
+def wad_songs(path):
+    """the songs a D32XR WAD's DMAPINFO plays: titleMus, intermissionMus, victoryMus, endMus, music"""
+    import re, struct
+    d = open(path, 'rb').read()
+    n, o = struct.unpack('<II', d[4:12])
+    for i in range(n):
+        p, s, nm = struct.unpack('<II8s', d[o + i * 16:o + i * 16 + 16])
+        if nm.split(b'\0')[0] == b'DMAPINFO':
+            txt = d[p:p + s].decode('latin1')
+            return sorted(set(x.upper() for x in re.findall(r'(?:titleMus|intermissionMus|victoryMus|endMus|music)\s*=\s*"(\w+)"', txt, re.I)))
+    return []
 
 
 def main():
@@ -88,13 +102,16 @@ def main():
     src, out = sys.argv[1], sys.argv[2]
     jobs = []
     t = 2
-    for d in ('SIGIL', 'SIGIL2'):
+    for d, wad in (('SIGIL', 'SIGIL.WAD'), ('SIGIL2', 'SIGIL_II.WAD')):
+        used = wad_songs(os.path.join(out, wad)) if os.path.exists(os.path.join(out, wad)) else []
         for song in SONGS[d]:
             p = os.path.join(src, 'Track%02d.wav' % t)
+            t += 1
+            if song not in used:
+                continue
             if not os.path.exists(p):
                 sys.exit('missing %s' % p)
             jobs.append((p, d, song))
-            t += 1
     # one gain for all of them: the loudest peak just under full scale
     peak = 0.0
     for p, _, _ in jobs:
@@ -111,7 +128,7 @@ def main():
         write_spcm(dst, to_spcm(y, gain, rng))
         total += os.path.getsize(dst)
         print('  %-28s %6.1f s  %5.1f MB' % ('%s/%s.PCM' % (d, song), len(y) / RATE, os.path.getsize(dst) / 1e6))
-    print('SPCM: 22 songs, %.0f MB, gain %+.1f dB' % (total / 1e6, 20 * np.log10(gain)))
+    print('SPCM: %d songs, %.1f MB, %d Hz %s, gain %+.1f dB' % (len(jobs), total / 1e6, RATE, 'mono' if CHANNELS == 1 else 'stereo', 20 * np.log10(gain)))
 
 
 if __name__ == '__main__':

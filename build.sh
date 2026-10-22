@@ -15,7 +15,8 @@
 #     PLUTONIA.WAD, SIGIL.WAD, SIGIL_II.WAD (tools/make_game.py)
 #   - optional: sigil_cdda/Track02..23.wav (SIGIL's music -> streamed PCM files, tools/make_sigil_cdda.sh)
 #   - optional: music/Track02.wav ... (the CD audio tracks: DOOM / DOOM II / Resurrection / Plutonia's
-#     soundtrack, Fusion's numbering); none: one silent track
+#     soundtrack, Fusion's numbering); else the tracks of "DOOM CD32X FUSION V3 with IDKFA
+#     Soundtrack/*.cue" in the project folder (IDKFA=<cue>); none: one silent track
 # and the D32XR team's devkit (GENDEV, default /opt/d32xr-dk/opt/toolchains/sega) for the game,
 # Chilly Willy's toolchain in /opt/toolchains/sega for the boot stack (cd32x/).
 set -e
@@ -43,6 +44,11 @@ fi
 # the disc's files: the Fusion disc's, plus PLUTONIA.WAD made from your plutonia.wad (a fifth game
 # in the select menu, tools/make_game.py; README "Plutonia")
 DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fusion/." "$DISC/"
+# left off the disc to make room (README "The disc"): TNT MINI, Fusion's map-testing MAPDEV.WAD (the
+# menu hides it) and the loose VGM folders (copies of music already inside the WADs; never read).
+# CUT="" keeps them all.
+CUT="${CUT-TNT_MINI.WAD MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"
+for f in $CUT; do rm -rf "$DISC/$f"; done
 if [ -f "$DATA/plutonia.wad" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
   PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
@@ -81,7 +87,7 @@ if [ -f "$DISC/SIGIL.WAD" ] || [ -f "$DISC/SIGIL_II.WAD" ]; then
   fi
 fi
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
-python3 "$HERE/tools/make_preload.py" plan "$DATA/fusion" "$HERE/build/preload.json" \
+python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
 PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
@@ -107,9 +113,13 @@ echo "==> CD audio"
 MUS="$HERE/build/music"; rm -rf "$MUS"; mkdir -p "$MUS"
 # the CD audio tracks: the soundtrack of DOOM, DOOM II, Resurrection and Plutonia (the music option
 # CD), numbered as Fusion's WADs number them (README "CD audio"): data/music/Track02.wav ...
+IDKFA="${IDKFA:-$HERE/DOOM CD32X FUSION V3 with IDKFA Soundtrack/DOOM CD32X FUSION V3 with IDKFA Soundtrack.cue}"
 if ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
   cp "$DATA"/music/Track*.wav "$MUS"/
   echo "    $(ls "$MUS" | wc -l) audio tracks from data/music"
+elif [ -f "$IDKFA" ]; then
+  # Fusion's IDKFA soundtrack, its tracks 2-26 exactly as on that disc (IDKFA=<cue> for another)
+  python3 "$HERE/tools/extract_cue_audio.py" "$IDKFA" "$MUS"
 else
   python3 - "$MUS/Track02.wav" <<'PY'
 import sys, wave
@@ -118,7 +128,11 @@ w.writeframes(bytes(4 * 44100 * 2)); w.close()
 PY
   echo "    no data/music/Track*.wav: one silent audio track"
 fi
-cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso "$MUS"/Track*.wav --out "$NAME"
+# no gaps between the audio tracks (like the IDKFA disc's cue): 2 s each would cost 7 MB
+cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso "$MUS"/Track*.wav --pregap 0 --out "$NAME"
+SECTORS=$(( $(stat -c %s "$NAME.bin") / 2352 ))
+printf "    the disc: %d sectors = %d:%02d of an 80:00 CD\n" $SECTORS $((SECTORS / 4500)) $((SECTORS % 4500 / 75))
+[ $SECTORS -le 359849 ] || echo "*** WARNING: longer than an 80-minute CD ($SECTORS > 359849 sectors)"
 mkdir -p "$HERE/discs/$NAME" && mv -f "$NAME.bin" "$NAME.cue" "$HERE/discs/$NAME/"
 echo
 echo "==> done: discs/$NAME/$NAME.cue (with its .bin)"
