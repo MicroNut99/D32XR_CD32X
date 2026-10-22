@@ -1,0 +1,248 @@
+gameinfo
+{
+    titleMus = "VGM_NTRO"
+    intermissionMus = "VGM_NTER"
+    victoryMus = "VGM_BUNN"
+    endMus = "VGM_END"
+    borderFlat = "FLOOR7_2"
+    titleTime = 1000
+    titlePage = "title"
+    creditsTime = 450
+    creditsPage = "credits1"
+    endText = "     id software*     salutes you!**  the horrors of hell*  could not kill you.*  their most cunning*  traps were no match*  for you. you have*  proven yourself the*  best of all!**  congratulations!"
+    endFlat = "FLOOR7_2"
+}
+map "MAP01" "Hangar"
+{
+    sky = "sky1"
+    next = "MAP02"
+    mapnumber = 1
+    music = "VGM_E1M1"
+}
+map "MAP02" "Plant"
+{
+    sky = "sky1"
+    next = "MAP03"
+    mapnumber = 2
+    music = "VGM_E1M2"
+}
+map "MAP03" "Toxin Refinery"
+{
+    sky = "sky1"
+    next = "MAP04"
+    secretnext = "MAP24"
+    mapnumber = 3
+    music = "VGM_E1M3"
+}
+map "MAP04" "Command Control"
+{
+    sky = "sky1"
+    next = "MAP05"
+    mapnumber = 4
+    music = "VGM_E1M4"
+}
+map "MAP05" "Phobos Lab"
+{
+    sky = "sky1"
+    next = "MAP06"
+    mapnumber = 5
+    music = "VGM_E1M5"
+}
+map "MAP06" "Central Processing"
+{
+    sky = "sky1"
+    next = "MAP07"
+    mapnumber = 6
+    music = "VGM_E1M6"
+}
+map "MAP07" "Computer Station"
+{
+    sky = "sky1"
+    next = "MAP08"
+    mapnumber = 7
+    music = "VGM_E1M7"
+}
+map "MAP08" "Phobos Anomaly"
+{
+    sky = "sky1"
+    next = "MAP09"
+    mapnumber = 8
+    music = "VGM_E1M8"
+    BaronSpecial
+}
+map "MAP09" "Deimos Anomaly"
+{
+    sky = "sky2"
+    next = "MAP10"
+    mapnumber = 9
+    music = "VGM_E2M1"
+}
+map "MAP10" "Containment Area"
+{
+    sky = "sky2"
+    next = "MAP11"
+    mapnumber = 10
+    music = "VGM_E2M2"
+}
+map "MAP11" "Refinery"
+{
+    sky = "sky2"
+    next = "MAP12"
+    mapnumber = 11
+    music = "VGM_NTER"
+}
+map "MAP12" "Deimos Lab"
+{
+    sky = "sky2"
+    next = "MAP13"
+    mapnumber = 12
+    music = "VGM_E2M4"
+}
+map "MAP13" "Command Center"
+{
+    sky = "sky2"
+    next = "MAP14"
+    mapnumber = 13
+    music = "VGM_E1M7"
+}
+map "MAP14" "Halls of the Damned"
+{
+    sky = "sky2"
+    next = "MAP15"
+    mapnumber = 14
+    music = "VGM_E2M6"
+}
+map "MAP15" "Spawning Vats"
+{
+    sky = "sky2"
+    next = "MAP16"
+    mapnumber = 15
+    music = "VGM_E2M7"
+}
+map "MAP16" "Tower of Babel"
+{
+    sky = "sky3"
+    next = "MAP17"
+    mapnumber = 16
+    music = "VGM_E2M8"
+}
+map "MAP17" "Hell Keep"
+{
+    sky = "sky3"
+    next = "MAP18"
+    mapnumber = 17
+    music = "VGM_E2M9"
+}
+map "MAP18" "Pandemonium"
+{
+    sky = "sky3"
+    next = "MAP19"
+    mapnumber = 18
+    music = "VGM_E3M3"
+}
+map "MAP19" "House of Pain"
+{
+    sky = "sky3"
+    next = "MAP20"
+    mapnumber = 19
+    music = "VGM_E3M2"
+}
+map "MAP20" "Unholy Cathedral"
+{
+    sky = "sky3"
+    next = "MAP21"
+    mapnumber = 20
+    music = "VGM_E1M7"
+}
+map "MAP21" "Mt Erebus"
+{
+    sky = "sky3"
+    next = "MAP22"
+    mapnumber = 21
+    music = "VGM_E1M6"
+}
+map "MAP22" "Limbo"
+{
+    sky = "sky3"
+    next = "MAP23"
+    mapnumber = 22
+    music = "VGM_E2M7"
+}
+map "MAP23" "Dis"
+{
+    sky = "sky3"
+    next = "MAP25"
+    mapnumber = 23
+    music = "VGM_E3M8"
+}
+map "MAP24" "Military Base"
+{
+    sky = "sky1"
+    next = "MAP04"
+    mapnumber = 24
+    music = "VGM_E1M9"
+}
+map "MAP25" "Hell Beneath"
+{
+    sky = "sky4"
+    next = "MAP26"
+    mapnumber = 25
+    music = "VGM_E1M8"
+}
+map "MAP26" "Perfect Hatred"
+{
+    sky = "sky4"
+    next = "MAP27"
+    secretnext = "MAP33"
+    mapnumber = 26
+    music = "VGM_E3M2"
+}
+map "MAP27" "Sever the Wicked"
+{
+    sky = "sky4"
+    next = "MAP28"
+    mapnumber = 27
+    music = "VGM_E3M3"
+}
+map "MAP28" "Unruly Evil"
+{
+    sky = "sky4"
+    next = "MAP29"
+    mapnumber = 28
+    music = "VGM_E1M5"
+}
+map "MAP29" "They Will Repent"
+{
+    sky = "sky4"
+    next = "MAP30"
+    mapnumber = 29
+    music = "VGM_E2M7"
+}
+map "MAP30" "Against Thee Wickedly"
+{
+    sky = "sky4"
+    next = "MAP31"
+    mapnumber = 30
+    music = "VGM_E2M4"
+}
+map "MAP31" "And Hell Followed"
+{
+    sky = "sky4"
+    next = "MAP32"
+    mapnumber = 31
+    music = "VGM_E2M6"
+}
+map "MAP32" "Unto the Cruel"
+{
+    sky = "sky4"
+    mapnumber = 32
+    music = "VGM_E1M7"
+    BaronSpecial
+}
+map "MAP33" "Fear"
+{
+    sky = "sky4"
+    next = "MAP27"
+    mapnumber = 33
+    music = "VGM_E1M9"
+}

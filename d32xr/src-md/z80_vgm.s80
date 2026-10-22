@@ -1,0 +1,814 @@
+#target ram
+#code SRAM, $0000
+
+; VGM player Z80 driver
+; Joe Fenton (C)2023
+
+; 32X Technical Notes
+; 15. Z80 writes to $840000-$9FFFFF and $A15100-$A153FF will lock
+;     the 68000. Writes to MD work RAM and PSG are allowed.
+; 22. The Z80 bank shift register must not be set to $000000-
+;     $3FFFFF or $840000-$9FFFFF. The 68000 may get inconsistent
+;     data, and the 32X registers may become corrupted.
+
+
+ACCURATE    EQU 1       ; set to 0 for 1.25, 1 for 1.1953125
+
+LOCAL_MEM   EQU $0040   ; player variable base address
+FM_IDX      EQU $00     ; music track index
+FM_CSM      EQU $01     ; music CSM mode
+FM_SMPL     EQU $02     ; music delay in samples (low)
+FM_SMPH     EQU $03     ; music delay in samples (high)
+FM_TICL     EQU $04     ; music timer ticks (low)
+FM_TICH     EQU $05     ; music timer ticks (high)
+FM_TTTL     EQU $06     ; music time to tick (low)
+FM_TTTH     EQU $07     ; music time to tick (high)
+
+FM_BUFCSM   EQU $08     ; music buffers consumed
+FM_BUFGEN   EQU $09     ; music buffers generated
+
+FM_RQPND    EQU $0A     ; 68000 request pending
+FM_RQARG    EQU $0B     ;   request argument (if any)
+
+FM_START    EQU $0C     ; start offset in sram (for starting/looping vgm)
+
+CRITICAL    EQU $0F     ; Z80 critical section flag
+
+RF5C68_ENV  EQU (LOCAL_MEM+0x10)
+RF5C68_PAN  EQU (LOCAL_MEM+0x11)
+RF5C68_FSL  EQU (LOCAL_MEM+0x12)
+RF5C68_FSH  EQU (LOCAL_MEM+0x13)
+RF5C68_LAL  EQU (LOCAL_MEM+0x14)
+RF5C68_LAH  EQU (LOCAL_MEM+0x15)
+RF5C68_STA  EQU (LOCAL_MEM+0x16)
+RF5C68_CTL  EQU (LOCAL_MEM+0x17)
+RF5C68_CHN  EQU (LOCAL_MEM+0x18)
+RF5C68_CNT  EQU (LOCAL_MEM+0x19)
+
+HLBACKUP    EQU (LOCAL_MEM+$1A)     ; backup space for HL register
+
+VGMBUF      EQU $1000   ; last 4KB of sram holds VGM data (eight banks of 512 bytes)
+VGMTOP      EQU $2000   ;
+
+YM2612      EQU $4000   ; YM2612 base address
+YMPORT0     EQU $00     ; YM2612 port 0 index
+YMPORT1     EQU $01     ; YM2612 port 0 data
+YMPORT2     EQU $02     ; YM2612 port 1 index
+YMPORT3     EQU $03     ; YM2612 port 1 data
+
+BANKREG     EQU $6000   ; Bank register
+PSGPORT     EQU $7F11   ; PSG port
+
+
+; variables at the top of 68000 work ram
+
+MD_BANK     EQU $8000   ; base address of MD space bank in Z80 map
+
+REQ_ACT     EQU $FFEF   ; request action by 68000
+
+STRM_KON    EQU $FFF0
+STRM_ID     EQU $FFF1
+STRM_CHIP   EQU $FFF2
+STRM_LMODE  EQU $FFF3
+STRM_SSIZE  EQU $FFF4
+STRM_SBASE  EQU $FFF5
+STRM_FREQH  EQU $FFF6
+STRM_FREQL  EQU $FFF7
+STRM_OFFHH  EQU $FFF8
+STRM_OFFHL  EQU $FFF9
+STRM_OFFLH  EQU $FFFA
+STRM_OFFLL  EQU $FFFB
+STRM_LENHH  EQU $FFFC
+STRM_LENHL  EQU $FFFD
+STRM_LENLH  EQU $FFFE
+STRM_LENLL  EQU $FFFF
+
+MD_RF5C68_ENV  EQU 0xFFE0
+MD_RF5C68_PAN  EQU 0xFFE1
+MD_RF5C68_FSH  EQU 0xFFE2
+MD_RF5C68_FSL  EQU 0xFFE3
+MD_RF5C68_LAH  EQU 0xFFE4
+MD_RF5C68_LAL  EQU 0xFFE5
+MD_RF5C68_STA  EQU 0xFFE6
+MD_RF5C68_CTL  EQU 0xFFE7
+MD_RF5C68_CHN  EQU 0xFFE8
+
+; ########################### Code starts here ##############################
+
+;   ORG $0000
+
+; basic init code
+    DI                          ; Disable ints
+    LD      SP,$1000            ; Setup stack (half-way to end of sram)
+    IM      1                   ; Set int mode 1
+    JP      start               ; Jump to start
+
+
+; ########################## Interrupt handler ##############################
+
+;   ORG     $0038
+    defs    $0038 - $
+
+interrupt
+    RETI
+
+
+; ############################## Main code ##################################
+
+;   ORG     $0080
+    defs    $0080 - $
+
+start
+    LD      DE,$FF80            ; bank set to top 32KB of 68000 Work RAM
+    CALL    set_bank
+
+start_loop
+    LD      A,(LOCAL_MEM+FM_IDX)
+    OR      A
+    JR      Z,start_loop        ; not playing VGM music
+
+    LD      A,0
+    LD      (RF5C68_CNT),A
+
+    LD      BC,(LOCAL_MEM+FM_START)
+    LD      HL,VGMBUF
+    ADD     HL,BC
+    LD      DE,VGMTOP
+    LD      IX,LOCAL_MEM
+    LD      IY,YM2612
+    LD      (IX+FM_CSM),$15
+    EXX
+    LD      IX,LOCAL_MEM
+    LD      IY,YM2612
+
+play_loop_exx
+    EXX
+play_loop
+    LD      A,(HL)              ; fetch next VGM byte
+; increment vgm data ptr
+    INC     L
+    JP      NZ,dispatch         ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+dispatch
+    LD      B,A
+    AND     $F0
+    CP      $70
+    JP      Z,wait_nn           ; wait nn+1 sample periods
+    LD      A,B
+    CP      $50
+    JP      Z,write_psg         ; write value dd to PSG
+    CP      $52
+    JP      Z,write_fm0         ; write value dd to YM2612 Port 0 register aa
+    CP      $53
+    JP      Z,write_fm1         ; write value dd to YM2612 Port 1 register aa
+    CP      $62
+    JP      Z,wait_735          ; wait 735 sample periods (1/60th sec)
+    CP      $63
+    JP      Z,wait_882          ; wait 882 sample periods (1/50th sec)
+    CP      $61
+    JP      Z,wait_nnnn         ; wait nnnn sample periods
+    CP      $95
+    JP      Z,strm_fast         ; stream fast start
+    CP      $93
+    JP      Z,strm_start        ; stream start
+    CP      $92
+    JP      Z,strm_freq         ; stream set frequency
+    CP      $90
+    JP      Z,strm_ctrl         ; stream setup and control
+    CP      $91
+    JP      Z,strm_data         ; stream set data
+    CP      $94
+    JP      Z,strm_stop         ; stream stop
+    CP      $66
+    JP      Z,end_data          ; end of sound data
+    CP      $B0
+    JP      Z,rf5c68_regwr      ; RF5C68 register write
+    CP      $B1
+    JP      Z,rf5c68_regwr      ; RF5C164 register write
+; unsupported command
+    JP      end_data
+
+
+waiting
+    LD      A,(IY+YMPORT0)
+    OR      A
+    JP      M,waiting           ; busy
+    BIT     0,A
+    JR      Z,waiting           ; timer A not overflowed
+; timer A overflow
+    LD      HL,(LOCAL_MEM+FM_TICL)
+    LD      BC,(LOCAL_MEM+FM_TTTL)
+    OR      A                   ; clear carry
+    SBC     HL,BC
+    LD      (LOCAL_MEM+FM_TICL),HL  ; FM_TIC = FM_TIC - FM_TTT
+    JR      NZ,set_timer        ; more ticks to wait
+; delay done, process commands
+    XOR     A
+    LD      (IX+FM_SMPL),A
+    LD      (IX+FM_SMPH),A
+    LD      (IX+FM_TTTL),A
+    LD      (IX+FM_TTTH),A
+    JP      play_loop_exx
+
+; timer ticks ~= sample delay * 1.2
+calc_timer
+    LD      HL,(LOCAL_MEM+FM_SMPL)
+#if ACCURATE
+    LD      BC,54928            ; 65535 / 1.1953125
+    OR      A                   ; clear carry
+    SBC     HL,BC
+    JR      NC,overflow
+    ADD     HL,BC
+    LD      BC,HL
+    SRL     B
+    RR      C
+    SRL     B
+    RR      C
+    SRL     B
+    RR      C                   ; samples/8
+    PUSH    BC
+    SRL     B
+    RR      C                   ; samples/16
+    PUSH    BC
+    SRL     B
+    RR      C
+    SRL     B
+    RR      C
+    SRL     B
+    RR      C                   ; samples/128
+    ADD     HL,BC
+    POP     BC
+    ADD     HL,BC
+    POP     BC
+    ADD     HL,BC               ; ticks = samples * 1.1953125
+    JR      set_timer
+#else
+    LD      BC,HL
+    SRL     B
+    RR      C
+    SRL     B
+    RR      C                   ; samples >> 2
+    ADD     HL,BC               ; ticks = samples * 1.25
+    JR      NC,set_timer
+#endif
+overflow
+    LD      HL,$FFFF
+set_timer
+    LD      (LOCAL_MEM+FM_TICL),HL  ; save total ticks
+    LD      (LOCAL_MEM+FM_TTTL),HL  ; ticks for timer A = ticks
+    LD      BC,$0400                ; max ticks for timer A (1024)
+    OR      A                       ; clear carry
+    SBC     HL,BC
+    JR      C,set_tmr               ; ticks <= max ticks for timer A
+    LD      (LOCAL_MEM+FM_TTTL),BC  ; use max ticks for timer A
+
+set_tmr
+    LD      HL,$0400
+    LD      BC,(LOCAL_MEM+FM_TTTL)
+    OR      A                   ; clear carry
+    SBC     HL,BC               ; timer A count = $0400 - ticks for timer A
+    LD      A,L
+    AND     $03                 ; two lsbs = ttt & 3
+    LD      E,A                 ; save two lsbs
+    SRL     H
+    RR      L
+    SRL     H
+    RR      L                   ; eight msbs = ttt >> 2
+    LD      D,L                 ; save eight msbs
+
+    LD      (IY+YMPORT0),$27
+    LD      A,(IX+FM_CSM)
+    AND     $FE
+    LD      (IY+YMPORT1),A      ; reset timer A (keep current CSM)
+    LD      (IY+YMPORT0),$24
+    LD      (IY+YMPORT1),D      ; set timer A msbs
+    LD      (IY+YMPORT0),$25
+    LD      (IY+YMPORT1),E      ; set timer A lsbs
+    LD      (IY+YMPORT0),$27
+    OR      $01
+    LD      (IY+YMPORT1),A      ; start timer A (keep current CSM)
+    JP      waiting
+
+
+next_buffer
+; done two pages, signal 68000 to load another buffer
+    EX      AF,AF'              ; save A
+wait_pend
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,wait_pend        ; request still pending
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    LD      A,(IX+FM_BUFCSM)
+    INC     A
+    LD      (IX+FM_BUFCSM),A    ; one more consumed
+    LD      (IX+FM_RQARG),A     ; request arg = # buffers consumed & 0xFF
+
+    LD      A,$01
+    LD      (REQ_ACT),A         ; request action - read buffer
+
+buf_wait
+    LD      A,(IX+FM_BUFGEN)
+    CP      (IX+FM_BUFCSM)
+    JR      Z,buf_wait          ; make sure we have at least one buffer ready
+    EX      AF,AF'              ; restore A
+
+    ; check buffer wrap around
+    OR      A                   ; clear carry
+    SBC     HL,DE
+    ADD     HL,DE               ; 16-bit compare
+    JR      NZ,fetch_exit       ; haven't reached end of buffer
+    LD      HL,VGMBUF           ; wrap around
+
+fetch_exit
+    RET
+
+
+; write value dd to PSG
+write_psg
+    LD      A,(HL)              ; fetch dd
+; increment vgm data ptr
+    INC     L
+    JP      NZ,set_psg          ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+set_psg
+    LD      (PSGPORT),A         ; write dd to PSG
+    JP      play_loop
+
+; write value dd to YM2612 Port 0 register aa
+write_fm0
+    LD      A,(HL)              ; fetch aa
+; increment vgm data ptr
+    INC     L
+    JP      NZ,get_fm0_dd       ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+get_fm0_dd
+    LD      B,(HL)              ; fetch dd
+; increment vgm data ptr
+    INC     L
+    JP      NZ,set_fm0          ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+set_fm0
+    CP      $27                 ; check if writing CSM
+    JR      NZ,wr_fm0           ; no
+    LD      A,B
+    AND     $40                 ; keep CSM bit
+    OR      $15
+    LD      (IX+FM_CSM),A
+    LD      B,A
+    LD      A,$27
+
+wr_fm0
+    LD      (IY+YMPORT0),A
+    LD      (IY+YMPORT1),B      ; write dd to YM2612 port 0 register aa
+    JP      play_loop
+
+; write value dd to YM2612 Port 1 register aa
+write_fm1
+    LD      A,(HL)              ; fetch aa
+; increment vgm data ptr
+    INC     L
+    JP      NZ,get_fm1_dd       ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+get_fm1_dd
+    LD      B,(HL)              ; fetch dd
+; increment vgm data ptr
+    INC     L
+    JP      NZ,set_fm1          ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+set_fm1
+    LD      (IY+YMPORT2),A
+    LD      (IY+YMPORT3),B      ; write dd to YM2612 port 1 register aa
+    JP      play_loop
+
+; wait nnnn sample periods
+wait_nnnn
+    LD      C,(HL)              ; fetch nn LSB
+; increment vgm data ptr
+    INC     L
+    JP      NZ,get_nn_msb       ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+get_nn_msb
+    LD      B,(HL)              ; fetch nn MSB
+; increment vgm data ptr
+    INC     L
+    JP      NZ,set_nnnn         ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+set_nnnn
+    LD      (LOCAL_MEM+FM_SMPL),BC
+    EXX
+    JP      calc_timer
+
+; wait 735 sample periods (1/60th sec)
+wait_735
+    LD      BC,735
+    LD      (LOCAL_MEM+FM_SMPL),BC
+    EXX
+    JP      calc_timer
+
+; wait 882 sample periods (1/50th sec)
+wait_882
+    LD      BC,882
+    LD      (LOCAL_MEM+FM_SMPL),BC
+    EXX
+    JP      calc_timer
+
+; end of sound data
+end_data
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    XOR     A
+    LD      (IX+FM_IDX),A       ; music stopped
+    LD      A,$02
+    LD      (REQ_ACT),A         ; request action - music ended
+
+end_wait
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,end_wait
+
+    LD      SP,$1000            ; reset stack (half-way to end of sram)
+    LD      A,(LOCAL_MEM+FM_IDX)
+    OR      A
+    JP      Z,start_loop        ; not playing VGM music
+
+    LD      BC,(LOCAL_MEM+FM_START)
+    LD      HL,VGMBUF
+    ADD     HL,BC
+    CALL    next_buffer
+    JP      play_loop           ; restart player
+
+; wait nn+1 sample periods
+wait_nn
+    LD      A,B
+    AND     $0F
+    INC     A
+    LD      C,A
+    LD      B,0
+    LD      (LOCAL_MEM+FM_SMPL),BC
+    EXX
+    JP      calc_timer
+
+
+; Some notes for streams on the MD
+;   There is only one YM2612, and thus only one DAC,
+;   and thus only one stream. We can probably just
+;   ignore it. We are also assuming an optimized VGM
+;   with only one data block using stream command 93
+;   to play samples.
+;
+;   We currently assume the length mode is 01, and
+;   hence the number of samples to play at the set
+;   frequency.
+
+strm_get
+    LD      A,(HL)              ; next VGM byte
+; increment vgm data ptr
+    INC     L
+    JP      NZ,sgexit           ; still on same page
+    INC     H
+    BIT     0,H
+    CALL    Z,next_buffer       ; done two pages (each buffer is two pages)
+sgexit
+    RET
+
+; stream setup and control
+strm_ctrl
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_ctrl        ; request still pending
+
+    CALL    strm_get            ; stream ID
+    PUSH    AF
+    CALL    strm_get            ; chip type = 0x00 for YM2612
+    PUSH    AF
+    CALL    strm_get            ; port = 0x00 for YM2612
+    CALL    strm_get            ; command/control value = 0x2A for YM2612
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    POP     AF
+    LD      (STRM_CHIP),A
+    POP     AF
+    LD      (STRM_ID),A
+
+    XOR     A
+    LD      (IX+FM_RQPND),A
+    LD      (REQ_ACT),A
+    JP      play_loop
+
+; stream set data
+strm_data
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_data        ; request still pending
+
+    CALL    strm_get            ; stream ID
+    PUSH    AF
+    CALL    strm_get            ; data bank ID
+    CALL    strm_get            ; step size
+    PUSH    AF
+    CALL    strm_get            ; step base
+    PUSH    AF
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+    POP     AF
+    LD      (STRM_SBASE),A
+    POP     AF
+    LD      (STRM_SSIZE),A
+    POP     AF
+    LD      (STRM_ID),A
+
+    XOR     A
+    LD      (IX+FM_RQPND),A
+    LD      (REQ_ACT),A
+    JP      play_loop
+
+; stream set frequency
+strm_freq
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_freq        ; request still pending
+
+    CALL    strm_get            ; stream ID
+    PUSH    AF
+    CALL    strm_get            ; frequency LL
+    PUSH    AF
+    CALL    strm_get            ; frequency LH
+    PUSH    AF
+    CALL    strm_get            ; frequency HL
+    CALL    strm_get            ; frequency HH
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    POP     AF
+    LD      (STRM_FREQH),A
+    POP     AF
+    LD      (STRM_FREQL),A
+    POP     AF
+    LD      (STRM_ID),A
+
+    XOR     A
+    LD      (IX+FM_RQPND),A
+    LD      (REQ_ACT),A
+    JP      play_loop
+
+; stream start
+strm_start
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_start       ; request still pending
+
+    CALL    strm_get            ; stream ID
+    PUSH    AF
+    CALL    strm_get            ; data start offset LL
+    PUSH    AF
+    CALL    strm_get            ; data start offset LH
+    PUSH    AF
+    CALL    strm_get            ; data start offset HL
+    PUSH    AF
+    CALL    strm_get            ; data start offset HH
+    PUSH    AF
+    CALL    strm_get            ; length mode
+    PUSH    AF
+    CALL    strm_get            ; data length LL
+    PUSH    AF
+    CALL    strm_get            ; data length LH
+    PUSH    AF
+    CALL    strm_get            ; data length HL
+    PUSH    AF
+    CALL    strm_get            ; data length HH
+    PUSH    AF
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    POP     AF
+    LD      (STRM_LENHH),A
+    POP     AF
+    LD      (STRM_LENHL),A
+    POP     AF
+    LD      (STRM_LENLH),A
+    POP     AF
+    LD      (STRM_LENLL),A
+    POP     AF
+    LD      (STRM_LMODE),A
+    POP     AF
+    LD      (STRM_OFFHH),A
+    POP     AF
+    LD      (STRM_OFFHL),A
+    POP     AF
+    LD      (STRM_OFFLH),A
+    POP     AF
+    LD      (STRM_OFFLL),A
+    POP     AF
+    LD      (STRM_ID),A
+
+    LD      A,$03
+    LD      (REQ_ACT),A         ; request action - stream start
+    JP      play_loop
+
+; stream stop
+strm_stop
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_stop        ; request still pending
+
+    CALL    strm_get            ; stream ID (0xFF means stop all streams)
+    PUSH    AF
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    POP     AF
+    LD      (STRM_ID),A
+
+    LD      A,$04
+    LD      (REQ_ACT),A         ; request action - stream stop
+    JP      play_loop
+
+; stream fast start
+strm_fast
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,strm_fast        ; request still pending
+
+    CALL    strm_get            ; stream ID
+    PUSH    AF
+    CALL    strm_get            ; block ID low
+    PUSH    AF
+    CALL    strm_get            ; block ID high
+    PUSH    AF
+    CALL    strm_get            ; flags (0x01 == loop, 0x10 == reverse)
+    PUSH    AF
+
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    POP     AF
+    LD      (STRM_OFFHL),A
+    POP     AF
+    LD      (STRM_OFFLH),A
+    POP     AF
+    LD      (STRM_OFFLL),A
+    POP     AF
+    LD      (STRM_ID),A
+
+    LD      A,$05
+    LD      (REQ_ACT),A         ; request action - stream fast start
+    JP      play_loop
+
+
+; set BANKREG to DE (write b0 to serial register nine times)
+set_bank
+    LD      BC,BANKREG
+
+    LD      A,E                 ; A = BA15-BA8 (BA14-BA8 ignored)
+    RLCA
+    LD      (BC),A              ; #1 = BA15
+
+    LD      A,D                 ; A = BA23-BA16
+
+    LD      (BC),A              ; #2 = BA16
+    RRCA
+    LD      (BC),A              ; #3 = BA17
+    RRCA
+    LD      (BC),A              ; #4 = BA18
+    RRCA
+    LD      (BC),A              ; #5 = BA19
+    RRCA
+    LD      (BC),A              ; #6 = BA20
+    RRCA
+    LD      (BC),A              ; #7 = BA21
+    RRCA
+    LD      (BC),A              ; #8 = BA22
+    RRCA
+    LD      (BC),A              ; #9 = BA23
+
+    RET
+
+rf5c68_action:
+    LD      A,$FF
+    LD      (REQ_ACT),A         ; request action - locked
+    LD      (IX+FM_RQPND),A     ; request pending
+
+    LD      A,(RF5C68_ENV)
+    LD      (MD_RF5C68_ENV),A
+
+    LD      A,(RF5C68_PAN)
+    LD      (MD_RF5C68_PAN),A
+
+    LD      A,(RF5C68_FSH)
+    LD      (MD_RF5C68_FSH),A
+    LD      A,(RF5C68_FSL)
+    LD      (MD_RF5C68_FSL),A
+
+    LD      A,(RF5C68_LAH)
+    LD      (MD_RF5C68_LAH),A
+    LD      A,(RF5C68_LAL)
+    LD      (MD_RF5C68_LAL),A
+
+    LD      A,(RF5C68_STA)
+    LD      (MD_RF5C68_STA),A
+
+    LD      A,(RF5C68_CTL)
+    LD      (MD_RF5C68_CTL),A
+
+    LD      A,(RF5C68_CHN)
+    LD      (MD_RF5C68_CHN),A
+
+    LD      A,0x0
+    LD      (RF5C68_CNT),A
+
+    LD      A,$06
+    LD      (REQ_ACT),A         ; request action - stream start
+
+    LD      A,0
+    LD      (RF5C68_FSH),A      ; reset frequency
+    LD      (RF5C68_FSL),A
+
+    LD      A,255
+    LD      (RF5C68_LAH),A      ; reset loop address
+    LD      (RF5C68_LAL),A
+
+    RET
+
+; rf5c68 register
+rf5c68_regwr
+    LD      A,(IX+FM_RQPND)
+    OR      A
+    JR      NZ,rf5c68_regwr     ; request still pending
+
+    CALL    strm_get            ; parameter
+    PUSH    AF
+
+    CP      0x07                ; if it's not a channel control, cont reading
+    JR      NZ,rf5c68_regwr_2
+
+    LD      A,(RF5C68_CNT)      ; if we don't have any commands buffered, cont reading
+    CP      0
+    JR      Z,rf5c68_regwr_2
+
+    CALL    rf5c68_action       ; send buffered commands to the 68000
+    LD      A,0x07
+
+rf5c68_regwr_2:
+    CALL    strm_get            ; parameter value
+    PUSH    AF
+
+    LD      (HLBACKUP),HL
+    LD      HL,RF5C68_ENV
+
+    POP     AF                  ; parameter value
+    LD      B,A
+    POP     AF                  ; parameter
+    LD      C,A
+    LD      A,B
+    LD      B,0
+    ADD     HL,BC
+    LD      (HL),A
+    LD      HL,(HLBACKUP)
+
+    LD      A,(RF5C68_CNT)
+    INC     A
+    LD      (RF5C68_CNT),A
+
+    LD      A,(HL)
+    CP      $B0
+    JP      Z,play_loop
+    CP      $B1
+    JP      Z,play_loop
+
+    CALL    rf5c68_action
+    JP      play_loop
+#end
