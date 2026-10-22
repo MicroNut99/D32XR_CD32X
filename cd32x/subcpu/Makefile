@@ -18,8 +18,9 @@ CCFLAGS = -m68000 -Wall -Ofast -c -fomit-frame-pointer
 HWFLAGS = -m68000 -Wall -O1 -c -fomit-frame-pointer
 # CART=8 / CART=16 test builds (build.sh passes CART_DEFS=-DCART_PAGED): CMD 68, CMD 38's
 # destination, the common pack at 0x060000 (docs/CART_8MB_16MB.md)
-CCFLAGS += $(CART_DEFS)
-HWFLAGS_EXTRA = $(CART_DEFS)
+CCFLAGS += $(CART_DEFS) $(GAME_DEFS)
+HWFLAGS_EXTRA = $(CART_DEFS) $(GAME_DEFS)
+# GAME_DEFS: D32XR CD32X passes -DD32XR_CD=7 (file 20 = D32XR.32X; CMD 60 leaves window 1 on page 7)
 LDFLAGS = -T $(LDSCRIPTSDIR)/cd.ld -Wl,-Map=output.map -nostdlib
 ASFLAGS = -m68000 --register-prefix-optional
 
@@ -37,6 +38,7 @@ RM = rm -rf
 
 # OJ-J4C: IMAGE8.RAW = OpenJazz's data pack (cart slot 8 = 0x100000, see OPENJAZZ_CD32X_HANDOFF.md)
 TARGET = CDROMPlayer
+VOLID ?= SRAMTEST
 # ---------------------------------------------------------------------------------------------
 # KOBO: the SH2 program is built in ../sh2 as D32XR.32x.  It is copied (renamed) to
 # ROMS/$(SH2_PAYLOAD) on EVERY build, files.s builds it into the program from there (relative
@@ -46,7 +48,7 @@ TARGET = CDROMPlayer
 # ---------------------------------------------------------------------------------------------
 SH2_BUILD   = ../sh2/CDLOADER.32x
 SH2_PAYLOAD = CDLOADER.BIN
-IMAGE_FILES = OPENLARA.32X IMAGE.RAW IMAGE8.RAW $(notdir $(wildcard ROMS/IMAGE9.RAW)) $(notdir $(wildcard ROMS/OJ*.PAK)) $(SH2_PAYLOAD) $(notdir $(wildcard ROMS/*.PKD)) $(notdir $(wildcard ROMS/SFX*.BIN))      # D32X M1: the CD-boot-patched D32XR ROM image      # IMAGE.RAW = splash (KOBO_SPLASH 1); if missing: harmless note
+IMAGE_FILES = D32XR.32X OPENLARA.32X IMAGE.RAW IMAGE8.RAW $(notdir $(wildcard ROMS/IMAGE9.RAW)) $(notdir $(wildcard ROMS/OJ*.PAK)) $(SH2_PAYLOAD) $(notdir $(wildcard ROMS/*.PKD)) $(notdir $(wildcard ROMS/SFX*.BIN))      # D32X M1: the CD-boot-patched D32XR ROM image      # IMAGE.RAW = splash (KOBO_SPLASH 1); if missing: harmless note
 LIBS = $(LIBPATH) -lc -lgcc -lnosys
 OBJS = crt0.o main.o hw_md.o scd.o scd_fs.o cd.o kos.o cdfs.o sub_stubs.o
 FILES = files.o
@@ -105,8 +107,10 @@ cd: $(TARGET).bin
 	@# K10: ROMS/ FIRST.  "make clean" only removes lowercase *.bin, so an old Demo/KOBOGFX.BIN
 	@# survived and was put on the disc instead of ROMS/KOBOGFX.BIN.
 	for f in $(IMAGE_FILES); do if [ -f ROMS/$$f ]; then cp -v ROMS/$$f cd/$$f; elif [ -f $$f ]; then cp -v $$f cd/$$f; echo "note: $$f taken from Demo/, not ROMS/"; else echo "note: $$f not found in ROMS/ or this folder"; fi; done
+	@# EXTRA_DIR: more files for the disc (D32XR CD32X: the Fusion disc's WADs, music and video)
+	if [ -n "$(EXTRA_DIR)" ] && [ -d "$(EXTRA_DIR)" ]; then cp -r "$(EXTRA_DIR)"/. cd/; fi
 	@echo "cd folder now holds:"; ls -1 cd
-	genisoimage -sysid "SEGA SEGACD" -volid "SRAMTEST" -generic-boot $(BOOTBLOCK) -full-iso9660-filenames -o $(TARGET).iso cd
+	genisoimage -sysid "SEGA SEGACD" -volid "$(VOLID)" -generic-boot $(BOOTBLOCK) -full-iso9660-filenames -o $(TARGET).iso cd
 
 clean:
 	if [ -d src-cd32x ]; then make clean -C src-cd32x; fi

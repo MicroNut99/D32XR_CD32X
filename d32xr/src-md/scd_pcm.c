@@ -4,6 +4,12 @@
 #include <string.h>
 #include "scd_pcm.h"
 
+#ifdef CD32X
+#define SCD_PCM_WORDRAM 0x200000 /* word RAM in mega CD mode 2 (the disc booted) */
+#else
+#define SCD_PCM_WORDRAM 0x600000
+#endif
+
 typedef struct
 {
     uint32_t cmd;
@@ -80,7 +86,7 @@ void scd_setptr_buf(uint16_t buf_id, const uint8_t *data, uint32_t data_len)
 
 void scd_upload_buf(uint16_t buf_id, const uint8_t *data, uint32_t data_len)
 {
-    uint8_t *scdWordRam = (uint8_t *)0x600000;
+    uint8_t *scdWordRam = (uint8_t *)SCD_PCM_WORDRAM;
 
     memcpy(scdWordRam, data, data_len);
 
@@ -96,7 +102,7 @@ void scd_upload_buf(uint16_t buf_id, const uint8_t *data, uint32_t data_len)
 void scd_upload_buf_fileofs(uint16_t buf_id, int numsfx, const uint8_t *data)
 {
     int filelen;
-    char *scdWordRam = (char *)0x600000;
+    char *scdWordRam = (char *)SCD_PCM_WORDRAM;
 
     // copy filename
     filelen = mystrlen((char *)data);

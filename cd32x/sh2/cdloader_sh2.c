@@ -18,6 +18,16 @@
 #ifndef CDL_TARGET_OPENLARA
 #define CDL_TARGET_OPENLARA 1
 #endif
+/* D32XR CD32X (Doom 32X Resurrection from the CD, README.md): CDL_TARGET_OPENLARA 0
+   (the 68000 runs D32XR's own Genesis code: CMD 60, "M_OK" / "S_OK"), with the loading screen
+   (CDL_SPLASH 1) and the 8 / 16 MB RAM cart: CDL_D32XR_PAGE = the page that holds the game's
+   second 2 MB (window 1), set with CMD 68 before the copy; the Sub-CPU sets it again at CMD 60. */
+#ifndef CDL_SPLASH
+#define CDL_SPLASH CDL_TARGET_OPENLARA
+#endif
+#ifndef CDL_D32XR_PAGE
+#define CDL_D32XR_PAGE 0
+#endif
 
 #define MARS_SYS_INTMSK  (*(volatile uint16_t *)0x20004000)
 #define MARS_SYS_COMM0   (*(volatile uint16_t *)0x20004020)
@@ -205,7 +215,7 @@ static uint32_t rd32(uint32_t off) {     /* big-endian long from the cart */
            ((uint32_t)CART[off + 2] << 8) | CART[off + 3];
 }
 
-#if CDL_TARGET_OPENLARA
+#if CDL_SPLASH
 /* ---- OL-5: boot splash - the same picture + red bar as OpenLara's loading screen ----------
    IMAGE.RAW (tools/make_boot_image.py): 224 lines x 320 pixels (bytes, as the frame buffer
    holds them from byte 0x200 on) followed by the 256-entry palette.  CMD 38 file 0 opens it,
@@ -219,11 +229,20 @@ static uint32_t rd32(uint32_t off) {     /* big-endian long from the cart */
 #define SPL_PAL_OFS      (0x200 + SPL_W * SPL_LINES)
 /* OJ-J4B: the bar sits low on the picture, between the Jazz Jackrabbit logo and the
    (C) 1994 EPIC MEGAGAMES line, clear of the turtle on the right (Splash.png measured) */
+#if CDL_TARGET_OPENLARA
 #define BAR_X0           56
 #define BAR_X1           236
 #define BAR_Y0           186
 #define BAR_Y1           198
+#else
+/* D32XR: on the fire along the bottom of the loading screen (tools/make_splash.py) */
+#define BAR_X0           60
+#define BAR_X1           260
+#define BAR_Y0           203
+#define BAR_Y1           213
+#endif
 static int splash_on = 0;
+static uint32_t splash_len = 0;     /* D32XR: IMAGE.RAW's length (the text strip after the palette) */
 
 static void give_fb(void) {
     SC_SYS_ADAPTER_B = 0x00;
@@ -255,6 +274,7 @@ static void splash_show(void) {
     wait_cmd(CMD_OPEN_FILE);
     len = SC_COMM8_32;
     if ((int32_t)len < SPL_PAL_OFS - 0x200 + 512) return;     /* no IMAGE.RAW: stay black */
+    splash_len = len;
     chunks = (len + CHUNK_BYTES - 1) >> 15;
     for (pass = 0; pass < 2; pass++) {
         give_fb();
@@ -273,6 +293,22 @@ static void splash_show(void) {
                                                                    diagnostic text in front (Kobo K18) */
     }
     splash_on = 1;
+}
+/* D32XR: the text line under the bar ("FIRST TIME: COPYING DOOM INTO THE RAM CART"): IMAGE.RAW
+   carries it after the palette (tools/make_splash.py), so it is already in both frame buffers;
+   copied to lines 214-222 of each, 16-bit accesses. Shown when the cart does not hold the game. */
+#define SPL_STRIP_OFS    (SPL_PAL_OFS + 512)
+#define SPL_STRIP_LINES  9
+#define SPL_STRIP_Y      214
+static void splash_text(void) {
+    int i, k;
+    if (!splash_on || splash_len < (uint32_t)(SPL_STRIP_OFS - 0x200 + SPL_W * SPL_STRIP_LINES)) return;
+    for (i = 0; i < 2; i++) {
+        volatile uint16_t *src = (volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + SPL_STRIP_OFS);
+        volatile uint16_t *dst = (volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + 0x200 + SPL_STRIP_Y * SPL_W);
+        for (k = 0; k < SPL_W * SPL_STRIP_LINES / 2; k++) dst[k] = src[k];
+        flip_wait();
+    }
 }
 static void splash_progress(uint32_t done, uint32_t total) {
     int i;
@@ -306,8 +342,15 @@ int main(void) {
     SC_COMM2 = OJ_DIAG_TEXT;             /* OJ-J4B: Genesis text per the switch above (OL-3 had 0) */
     wait_cmd(52);
     show_status(0x4D01);
-#if CDL_TARGET_OPENLARA
+#if CDL_SPLASH
     splash_show();                       /* OL-5 */
+#endif
+#if CDL_D32XR_PAGE
+    /* D32XR: window 1 shows the game's own page, so the copy (CMD 46) and the check (CMD 47)
+       of the ROM's second 2 MB go there, and page 1 (the shared save area, other titles'
+       data) is left alone. A 4 MB cart has no page register: the write does nothing. */
+    SC_COMM2 = CDL_D32XR_PAGE;
+    wait_cmd(68);
 #endif
 
     /* ---- 1. the ROM image into the cart ---- */
@@ -345,6 +388,9 @@ int main(void) {
         }
     }
 
+#if CDL_SPLASH && !CDL_TARGET_OPENLARA
+    splash_text();                       /* D32XR: the game is not in the cart (yet): say so */
+#endif
     for (c = 0; c < nchunks; c++) {
         SC_COMM2 = (uint16_t)c;
         SC_COMM12 = 0;                   /* the Sub-CPU replies 0 = chunk verified */
@@ -355,6 +401,8 @@ int main(void) {
 #if CDL_TARGET_OPENLARA
         splash_progress(c + 1, 2 * nchunks);  /* OJ-J4B: the bar grows with every chunk (OL-7 had it off);
                                                  OJ-J4D: to the half - the engine's data pack fills the rest */
+#elif CDL_SPLASH
+        splash_progress(c + 1, nchunks);      /* D32XR: the whole bar is the ROM */
 #endif
     }
     if (bad) halt(0x4DE2);

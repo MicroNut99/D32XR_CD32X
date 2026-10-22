@@ -3,6 +3,16 @@
 #include <string.h>
 #include <stdio.h>
 
+/* CD32X: the disc booted (Mega CD mode 2), so the Mega CD sits at 0x000000 (BIOS ROM 0x000000,
+   Program RAM window 0x020000, Word RAM 0x200000) instead of 0x400000 / 0x420000 / 0x600000
+   as when a cartridge booted (mode 1). */
+#ifdef CD32X
+#define MCD_BASE 0x000000
+#else
+#define MCD_BASE 0x400000
+#endif
+#define MCD_WORDRAM ((char *)(MCD_BASE + 0x200000))
+
 extern uint32_t vblank_vector;
 extern uint16_t gen_lvl2;
 
@@ -59,7 +69,7 @@ void wait_do_cmd(char cmd)
 int64_t scd_open_file(const char *name)
 {
     int i;
-    char *scdfn = (char *)0x600000; /* word ram on MD side (in 1M mode) */
+    char *scdfn = MCD_WORDRAM; /* word ram on MD side (in 1M mode) */
     union {
         int32_t lo[2];
         int64_t value;
@@ -82,7 +92,7 @@ int64_t scd_open_file(const char *name)
 int64_t scd_read_directory(char *buf)
 {
     int i, numwords;
-    char *scdWordRam = (char *)0x600000; /* word ram on MD side (in 1M mode) */
+    char *scdWordRam = MCD_WORDRAM; /* word ram on MD side (in 1M mode) */
     union {
         int32_t ln[2]; /* length, num entries */
         int64_t value;
@@ -141,7 +151,7 @@ void scd_switch_to_bank(int bank)
 
 void scd_play_spcm_track(const char *name, int repeat)
 {
-    char *scdWordRam = (char *)0x600000; /* word ram on MD side (in 1M mode) */
+    char *scdWordRam = MCD_WORDRAM; /* word ram on MD side (in 1M mode) */
 
     memcpy(scdWordRam, name, mystrlen(name)+1);
     write_long(0xA12010, 0x0C0000); /* word ram on CD side (in 1M mode) */
@@ -272,16 +282,16 @@ uint16_t InitCD(void)
      * 0x400000 instead of 0x000000. So the BIOS ROM is at 0x400000, the
      * Program RAM bank is at 0x420000, and the Word RAM is at 0x600000.
      */
-    bios = (char *)0x415800;
+    bios = (char *)(MCD_BASE + 0x15800);
     if (memcmp(bios + 0x6D, "SEGA", 4))
     {
-        bios = (char *)0x416000;
+        bios = (char *)(MCD_BASE + 0x16000);
         if (memcmp(bios + 0x6D, "SEGA", 4))
         {
             // check for WonderMega/X'Eye
             if (memcmp(bios + 0x6D, "WONDER", 6))
             {
-                bios = (char *)0x41AD00; // might also be 0x40D500
+                bios = (char *)(MCD_BASE + 0x1AD00); // might also be 0x40D500
                 // check for LaserActive
                 if (memcmp(bios + 0x6D, "SEGA", 4))
                     return 0; // no CD
@@ -309,13 +319,13 @@ uint16_t InitCD(void)
      * Decompress Sub-CPU BIOS to Program RAM at 0x00000
      */
     write_word(0xA12002, 0x0002); // no write-protection, bank 0, 2M mode, Word RAM assigned to Sub-CPU
-    memset((char *)0x420000, 0, 0x20000); // clear program ram first bank - needed for the LaserActive
-    Kos_Decomp((uint8_t *)bios, (uint8_t *)0x420000);
+    memset((char *)(MCD_BASE + 0x20000), 0, 0x20000); // clear program ram first bank - needed for the LaserActive
+    Kos_Decomp((uint8_t *)bios, (uint8_t *)(MCD_BASE + 0x20000));
 
     /*
      * Copy Sub-CPU program to Program RAM at 0x06000
      */
-    memcpy((char *)0x426000, (char *)&Sub_Start, (int)&Sub_End - (int)&Sub_Start);
+    memcpy((char *)(MCD_BASE + 0x26000), (char *)&Sub_Start, (int)&Sub_End - (int)&Sub_Start);
 
     write_byte(0xA1200E, 0x00); // clear main comm port
     write_byte(0xA12002, 0x2A); // write-protect up to 0x05400

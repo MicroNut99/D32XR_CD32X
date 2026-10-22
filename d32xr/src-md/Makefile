@@ -17,6 +17,12 @@ HWCCFLAGS += -DENABLE_SSF_MAPPER
 CCFLAGS += -DENABLE_SSF_MAPPER
 ASFLAGS += --defsym ENABLE_SSF_MAPPER=1
 endif
+# CD32X=1: Mega CD mode 2 (the disc booted, the game runs from the RAM cart)
+ifdef CD32X
+HWCCFLAGS += -DCD32X
+CCFLAGS += -DCD32X
+ASFLAGS += --defsym CD32X=1
+endif
 LINKFLAGS = -T $(LDSCRIPTSDIR)/mars-md.ld -Wl,-Map=output.map -nostdlib -Os -flto
 
 PREFIX = $(ROOTDIR)/m68k-elf/bin/m68k-elf-

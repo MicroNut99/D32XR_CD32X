@@ -5,6 +5,14 @@
 
         .equ DEFAULT_LINK_TIMEOUT, 0x3FFF
 
+.ifdef CD32X
+| CD32X: the RAM cart (README.md). The game's first 2 MB are page 0 (window 0), its
+| second 2 MB page 7 (window 1, set by the Sub-CPU before the hand-over). Saves: the shared save
+| area's piece 11 (cart 0x3FB000 in page 1), seen by the 68000 at 0x400000 + offset with RV = 1.
+        .equ CD32X_PAGE_W, 0x0700   /* page 7 on D8-D10 of the window 1 register 0xA130F2 */
+        .equ CD32X_SAVE,   0x7FB000 /* 0x400000 + 0x3FB000 */
+.endif
+
         /* Z80 local mem variable offsets */
         .equ FM_IDX,    0x40        /* music track index */
         .equ FM_CSM,    0x41        /* music CSM mode */
@@ -71,7 +79,11 @@
         .equ MARS_PWM_CYCLE,   0xA15132
         .equ MARS_PWM_MONO,    0xA15138
 
+.ifdef CD32X
+        .equ COL_STORE, 0x200800    /* WORD RAM + 2K (mega CD mode 2: word RAM at 0x200000) */
+.else
         .equ COL_STORE, 0x600800    /* WORD RAM + 2K */
+.endif
 
         .equ NET_PORT,  0xA10005    /* port 2 data    (use 0xA10007 for EXT port) */
         .equ NET_CTRL,  0xA1000B    /* port 2 control (use 0xA1000D for EXT port) */
@@ -153,7 +165,25 @@ _start:
         dbra    d0,2b
 
 |        lea     __stack,sp              /* set stack pointer to top of Work RAM */
+.ifdef CD32X
+| CD32X: the disc booted (mega CD mode 2). On the console the 68000 then takes its interrupt
+| vectors from the mega CD BIOS, which points them at jumps in work RAM (level 6 = vertical
+| blank at 0xFFFD06, level 2 = external at 0xFFFD12; level 4 = horizontal blank comes from the
+| mega CD's HINT register 0xA12006 as 0xFFxxxx). The clear above wiped those jumps: write them
+| again, pointing at the handlers below. (With the 32X on, an emulator may take the vectors from
+| the 32X's vector ROM instead: they point at this cartridge's jump table at 0x880200, which
+| reaches the same handlers.) The stack starts below the jumps.
+        lea     0x00FFFD00,sp           /* below the BIOS's RAM jump table */
+        move.w  #0x4EF9,0xFFFD06        /* jmp vblank handler */
+        move.l  #vblank_handler,0xFFFD08
+        move.w  #0x4EF9,0xFFFD0C        /* jmp hblank handler */
+        move.l  #hblank_handler,0xFFFD0E
+        move.w  #0x4EF9,0xFFFD12        /* jmp external interrupt handler */
+        move.l  #extint_handler,0xFFFD14
+        move.w  #0xFD0C,0xA12006        /* HINT vector = 0xFFFD0C */
+.else
         lea     0x00FFFFE0,sp           /* top of Work RAM - space for Z80 comm */
+.endif
 
         bsr     init_hardware           /* initialize the console hardware */
 
@@ -180,12 +210,14 @@ _start:
 
 | 0x880880 - 68000 Level 4 interrupt handler - HBlank IRQ
 
+hblank_handler:
         rte
 
         .align  64
 
 | 0x8808C0 - 68000 Level 6 interrupt handler - VBlank IRQ
 
+vblank_handler:
         move.l  d0,-(sp)
         move.l  vblank,d0
         beq.b   1f
@@ -200,6 +232,7 @@ _start:
 
 | 0x880900 - 68000 Level 2 interrupt handler - EXT IRQ
 
+extint_handler:
         move.l  d0,-(sp)
         move.l  extint,d0
         beq.b   1f
@@ -567,6 +600,19 @@ read_sram:
         moveq   #0,d0
         move.w  0xA15122,d0         /* COMM2 holds offset */
         moveq   #0,d1
+.ifdef CD32X
+| CD32X: no save RAM - the bytes go to the RAM cart's shared save area, piece 11 (cart 0x3FB000,
+| page 1). With RV = 1 the 68000 sees the cart at 0x400000 (mega CD mode 2). Window 1 shows the
+| game's own page (7) while it runs: page 1 for the access, then page 7 again. The SH2s wait
+| in their command interrupt meanwhile (sh2_wait), as for the cartridge's save RAM.
+        lea     CD32X_SAVE,a0
+        sh2_wait
+        set_rv
+        move.w  #0x0100,0xA130F2    /* window 1 = page 1 (the save area) */
+        move.b  0(a0,d0.l),d1
+        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        bra.w   exit_rd_sram
+.endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   rd_msd_sram
 .ifdef ENABLE_SSF_MAPPER
@@ -624,6 +670,16 @@ write_sram:
         move.w  #0x2700,sr          /* disable ints */
         moveq   #0,d1
         move.w  0xA15122,d1         /* COMM2 holds offset */
+.ifdef CD32X
+| CD32X: into the RAM cart's save area, piece 11 (see read_sram)
+        lea     CD32X_SAVE,a0
+        sh2_wait
+        set_rv
+        move.w  #0x0100,0xA130F2    /* window 1 = page 1 (the save area) */
+        move.b  d0,0(a0,d1.l)
+        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        bra.w   exit_wr_sram
+.endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   wr_msd_sram
 .ifdef ENABLE_SSF_MAPPER

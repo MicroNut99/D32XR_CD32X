@@ -41,6 +41,12 @@ HWCCFLAGS += -DENABLE_SSF_MAPPER
 CCFLAGS += -DENABLE_SSF_MAPPER
 ASFLAGS += --defsym ENABLE_SSF_MAPPER=1
 endif
+# CD32X=1: the CD32X build (boots from the Sega CD into the RAM cart: src-md runs in Mega CD
+# mode 2, saves in the cart's shared save area). See ../README.md.
+ifdef CD32X
+CCFLAGS += -DCD32X
+ASFLAGS += --defsym CD32X=1
+endif
 ifdef USE_SMALL_LUMPS
 CCFLAGS += -DUSE_SMALL_LUMPS
 endif

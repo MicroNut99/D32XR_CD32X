@@ -28,6 +28,12 @@ int mystrlen(const char* string)
 int main(void)
 {
     cd_ok = InitCD();
+#ifdef CD32X
+    /* CD32X: the RAM cart is no MegaSD / EverDrive - and their probes write the cartridge's
+       0xA130xx registers, where the 8 / 16 MB RAM cart keeps its page latches */
+    megasd_ok = 0;
+    everdrive_ok = 0;
+#else
     megasd_ok = InitMegaSD();
     everdrive_ok = 0;
 
@@ -35,6 +41,7 @@ int main(void)
     if (megasd_ok == 0 || megasd_ok & 0x4) {
         everdrive_ok = InitEverDrive();
     }
+#endif
 
     if (megasd_num_cdtracks == 1) {
         /* workaround a MD+ quirk where it exposes a single-track MD+ OST, */

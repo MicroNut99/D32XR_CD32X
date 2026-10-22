@@ -773,7 +773,11 @@ int main(void)
             /* KOBO M1: file number 16 = the Kobo graphics pack (tools/kobo_gfx.py).
                CMD 46 then stores it at cart offset 16 * CART_SLOT = 2 MB. */
             if (img_idx == 16) { strcpy(img_name, KOBO_PACK_NAME); cur_img = KOBO_PACK_SLOT; }
+#ifdef D32XR_CD
+            else if (img_idx == 20) { strcpy(img_name, "D32XR.32X"); cur_img = 0; }     /* D32XR CD32X: the game's ROM at cart 0 */
+#else
             else if (img_idx == 20) { strcpy(img_name, "OPENLARA.32X"); cur_img = 0; }  /* D32X M1: ROM at cart 0 */
+#endif
             else if (img_idx >= OL_LEVEL_BASE && img_idx < OL_LEVEL_BASE + OL_LEVEL_COUNT) {
                 strcpy(img_name, ol_level_files[img_idx - OL_LEVEL_BASE]);   /* OL-2 */
                 cur_img = OL_LEVEL_SLOT;
@@ -959,7 +963,11 @@ int main(void)
         }
         else if (cmd == 60) {
 #ifdef CART_PAGED
+#ifdef D32XR_CD
+            cart_page_write(D32XR_CD);                  /* D32XR CD32X: window 1 = the game's second 2 MB */
+#else
             cart_page_write(1);                         /* hand over with the reset mapping */
+#endif
 #endif
             /* D32X M1: the ROM image is in the cart.  Acknowledge the SH2 FIRST (the 68K will be
                gone after this), then make the 68K jump to D32XR's Genesis code (0x880800 via the

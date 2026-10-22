@@ -1,3 +1,4 @@
+# LOADER_DEFS: the build's switches (build.sh: -DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=1 -DCDL_D32XR_PAGE=7)
 # D32XR CD32X - SH2 loader (master + slave), built in d32xr-master/ next to D32XR itself.
 # It uses ONLY its own files: cdloader_sh2.c, cdl_crt0.s (our CD-boot start-up, with the CD
 # boot table), cdloader.ld.  D32XR's own crt0.s, linker scripts, headers, objects, Makefile
@@ -7,7 +8,7 @@ PREFIX  = $(ROOTDIR)/sh-elf/bin/sh-elf-
 CC      = $(PREFIX)gcc
 LD      = $(PREFIX)ld
 OBJC    = $(PREFIX)objcopy
-CCFLAGS = -c -std=c11 -m2 -mb -O2 -Wall -ffunction-sections -fdata-sections -D__32X__ -DMARS
+CCFLAGS = -c -std=c11 -m2 -mb -O2 -Wall -ffunction-sections -fdata-sections -D__32X__ -DMARS $(LOADER_DEFS)
 
 all: CDLOADER.32x
 

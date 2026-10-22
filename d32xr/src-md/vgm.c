@@ -19,7 +19,11 @@
 
 #define VGM_MAX_RF5C68_LOOPS 10
 
+#ifdef CD32X
+#define MD_WORDRAM          (void*)0x200000 /* word RAM on the MD in mega CD mode 2 (the disc booted) */
+#else
 #define MD_WORDRAM          (void*)0x600000
+#endif
 #define MCD_WORDRAM         (void*)0x0C0000
 
 #define MD_WORDRAM_VGM_PTR  (MD_WORDRAM+VGM_WORDRAM_OFS)

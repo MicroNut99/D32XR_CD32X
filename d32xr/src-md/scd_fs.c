@@ -3,7 +3,11 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef CD32X
+#define MD_WORDRAM          (void*)0x200000 /* word RAM on the MD in mega CD mode 2 (the disc booted) */
+#else
 #define MD_WORDRAM          (void*)0x600000 /* word RAM address on the MD in 1M mode */
+#endif
 #define MCD_WORDRAM         (void*)((uintptr_t)0x0C0000) /* word RAM address on the SCD in 1M mode */
 
 #define BLOCK_SIZE 2048
