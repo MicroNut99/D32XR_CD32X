@@ -22,9 +22,6 @@ cp "$HERE/data/doom32xf.wad" "$B/doom32xf.wad"
 # CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the
 # music option CD means FM for the others (marssound.c, CD32X_CDONLY)
 [ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c"
-# CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the
-# music option CD means FM for the others (marssound.c, CD32X_CDONLY)
-[ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c"
 cd "$B"
 OPTS=""; [ -n "${FIRE:-}" ] && OPTS="ENABLE_FIRE_ANIMATION=1 FIRE_TIME=470"
 env $OPTS "$@" \
