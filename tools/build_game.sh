@@ -1,23 +1,28 @@
 #!/bin/bash
-# build_game.sh <out.32x> [CD32X=1]: builds D32XR v3.5 (d32xr/) the way the Doom 32X Resurrection
-# v3.5 release was built (the CI's second option: DISABLE_CDFS, fire, DMA sound, small lumps,
-# 4 mip levels - the program comes out byte for byte the release's), with the IWAD from
-# data/doom32xf.wad, in build/d32xr (a copy: the source folder stays clean).
+# build_game.sh <out.32x> [CD32X=1]: builds DOOM CD32X Fusion v3.0 from d32xr/ (viciious/d32xr
+# tag fusion_v3.0 = v3.5) the way the Fusion release was built - D32XR's default options: the CD
+# file system on (WADs, music and video from the disc), no title fire. Without CD32X=1 the
+# program comes out byte for byte the release's (only the build date differs).
+# FIRE=1: the title fire of Resurrection v3.5 (ENABLE_FIRE_ANIMATION, FIRE_TIME=470), see README
+# (build.sh sets it unless FIRE=0).
+# The IWAD comes from data/doom32xf.wad (tools/extract_iwad.py takes it out of the Fusion ROM).
+# Built in build/d32xr (a copy: the source folder stays clean).
 # GENDEV = the D32XR team's devkit (chillys-sega-devkit-20220418), default /opt/d32xr-dk/opt/toolchains/sega.
 set -e
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(realpath -m "$1")"; shift
 DK="${GENDEV:-/opt/d32xr-dk/opt/toolchains/sega}"
 [ -x "$DK/sh-elf/bin/sh-elf-gcc" ] || { echo "*** no devkit in $DK (set GENDEV)"; exit 1; }
-[ -f "$HERE/data/doom32xf.wad" ] || { echo "*** no data/doom32xf.wad (tools/extract_iwad.py <your v3.5 ROM> data/doom32xf.wad)"; exit 1; }
+[ -f "$HERE/data/doom32xf.wad" ] || { echo "*** no data/doom32xf.wad (tools/extract_iwad.py <your Fusion ROM> data/doom32xf.wad)"; exit 1; }
 B="$HERE/build/d32xr"
 rm -rf "$B"; mkdir -p "$HERE/build"; cp -r "$HERE/d32xr" "$B"
 cp "$HERE/data/doom32xf.wad" "$B/doom32xf.wad"
+# PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
+[ -n "${PRELOAD_H:-}" ] && cp "$PRELOAD_H" "$B/src-md/cd32x_preload.h"
 cd "$B"
-# CDFS=1: the Fusion build - the game reads WADs from the CD (the game select menu, SOUNDS.WAD)
-NOCDFS="DISABLE_CDFS=1"; [ -n "${CDFS:-}" ] && NOCDFS="D32XR_CDFS=1"
-env $NOCDFS ENABLE_FIRE_ANIMATION=1 ENABLE_DMA_SOUND=1 USE_SMALL_LUMPS=1 MIPLEVELS=4 "$@" \
-  make -j8 release ROOTDIR="$DK" GENDEV="$DK" TITLE="${TITLE:-Doom 32X Resurrection}" VERSION="${VERSION:-3.5}" > build.log 2>&1 \
+OPTS=""; [ -n "${FIRE:-}" ] && OPTS="ENABLE_FIRE_ANIMATION=1 FIRE_TIME=470"
+env $OPTS "$@" \
+  make -j8 release ROOTDIR="$DK" GENDEV="$DK" TITLE="${TITLE:-Doom CD32X Fusion}" VERSION="${VERSION:-3.0}" > build.log 2>&1 \
   || { grep -n -i -B2 -A2 " error\|undefined ref" build.log | head -40; echo "*** game build failed (build/d32xr/build.log)"; exit 1; }
 cp D32XR.32x "$OUT"
 echo "game: $OUT ($(stat -c %s "$OUT") bytes)"

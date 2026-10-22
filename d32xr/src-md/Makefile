@@ -40,6 +40,11 @@ RM = rm -f
 TARGET = m68k
 LIBS = $(LIBPATH) -lc -lgcc -lnosys
 OBJS = crt0.o everdrive.o main.o kos.o cd.o lzss.o megasd.o vgm.o zfiles.o scd.o scd_pcm.o scd_fs.o scd_roq.o
+# CD32X: no MegaSD / EverDrive code (never probed on the RAM cart, see main.c): the space the
+# title fire needs to fit the 4 MB cart (crt0.s keeps three stubs for the CD music calls)
+ifdef CD32X
+OBJS := $(filter-out megasd.o everdrive.o,$(OBJS))
+endif
 
 all: $(TARGET).bin
 

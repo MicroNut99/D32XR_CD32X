@@ -300,11 +300,12 @@ static void splash_show(void) {
 #define SPL_STRIP_OFS    (SPL_PAL_OFS + 512)
 #define SPL_STRIP_LINES  9
 #define SPL_STRIP_Y      214
-static void splash_text(void) {
+static void splash_text(int strip) {
     int i, k;
-    if (!splash_on || splash_len < (uint32_t)(SPL_STRIP_OFS - 0x200 + SPL_W * SPL_STRIP_LINES)) return;
+    uint32_t ofs = SPL_STRIP_OFS + (uint32_t)strip * SPL_W * SPL_STRIP_LINES;
+    if (!splash_on || splash_len < ofs - 0x200 + SPL_W * SPL_STRIP_LINES) return;
     for (i = 0; i < 2; i++) {
-        volatile uint16_t *src = (volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + SPL_STRIP_OFS);
+        volatile uint16_t *src = (volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + ofs);
         volatile uint16_t *dst = (volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + 0x200 + SPL_STRIP_Y * SPL_W);
         for (k = 0; k < SPL_W * SPL_STRIP_LINES / 2; k++) dst[k] = src[k];
         flip_wait();
@@ -314,6 +315,111 @@ static void splash_progress(uint32_t done, uint32_t total) {
     int i;
     if (!splash_on) return;
     for (i = 0; i < 2; i++) { splash_bar(done, total); flip_wait(); }
+}
+#endif
+
+#if CDL_D32XR_PAGE
+/* ===========================================================================================
+ * D32XR CD32X: the 16 MB RAM cart (README.md, "The cart").
+ *   page 0 + page CDL_D32XR_PAGE : the game's ROM (windows 0 and 1)
+ *   page 1                       : the shared save area and the other titles' data - not touched
+ *                                  (only the scratch piece 15 for the board probe and the record)
+ *   pages 2-6                    : the preload (tools/make_preload.py -> preload.h): the WADs, read
+ *                                  by the game from here instead of the CD
+ * Every boot: the board probe, then the checksums of the ROM and of every preload file in the
+ * cart; what does not match is copied from the CD with "FIRST TIME: COPYING DOOM INTO THE RAM
+ * CART" under the bar; then the record "D32XR PRELOAD OK" (save piece 15 of page 1) tells the
+ * game to read the preload from the cart. Status codes (COMM12): 4D10 probe, 4D11-13 the board
+ * (4/8/16 MB), 4D14 checking, 4D15 copying, 4D16 record written, 4DE5 4 MB cart (stop).
+ * =========================================================================================== */
+#include "preload.h"
+#define CART_W1 ((volatile uint32_t *)0x22200000)    /* window 1, cache-through */
+#define PIECE15 0x1FF000                              /* save piece 15 in a page (window 1 offset) */
+
+static void cart_page(int page) { SC_COMM2 = (uint16_t)page; wait_cmd(68); }
+
+/* save piece 15 of the page in window 1: the first words from w[], the rest of the Sub-CPU's
+   4 KB buffer as it is (CMD 58 per word, CMD 61) */
+static void piece15_write(const uint16_t *w, int nw) {
+    int k;
+    for (k = 0; k < nw; k++) {
+        SC_COMM2 = (uint16_t)k;
+        *(volatile uint16_t *)0x20004028 = w[k];         /* COMM8 (high word) */
+        wait_cmd(58);
+    }
+    SC_COMM2 = 15;
+    wait_cmd(61);
+}
+
+/* 4, 8 or 16 (MB): markers in piece 15 of pages 1, 2 and 6, then read back. No page register:
+   all three land in page 1. 8 MB: page 6 is page 2. */
+static int cart_probe(void) {
+    static const int pages[3] = { 1, 2, 6 };
+    uint16_t w[4];
+    int i;
+    for (i = 0; i < 3; i++) {
+        w[0] = 0x4433; w[1] = 0x3258; w[2] = (uint16_t)(0x5000 | pages[i]); w[3] = (uint16_t)~w[2];
+        cart_page(pages[i]);
+        piece15_write(w, 4);
+    }
+    cart_page(1);
+    if (((volatile uint16_t *)CART_W1)[(PIECE15 >> 1) + 2] == 0x5006) return 4;
+    cart_page(2);
+    return ((volatile uint16_t *)CART_W1)[(PIECE15 >> 1) + 2] == 0x5002 ? 16 : 8;
+}
+
+/* the build's checksum (tools/make_preload.py) over len bytes from p (cart, cache-through) */
+static uint32_t sum_add(uint32_t s, const volatile uint32_t *p, uint32_t len) {
+    uint32_t n = len >> 2, k;
+    for (k = 0; k < n; k++) s = ((s << 1) | (s >> 31)) + p[k];
+    if (len & 3) {
+        const volatile uint8_t *b = (const volatile uint8_t *)(p + n);
+        for (k = 0; k < (len & 3); k++) s += b[k];
+    }
+    return s;
+}
+static uint32_t rom_sum(void) {
+    uint32_t s;
+    cart_page(CDL_D32XR_PAGE);
+    s = sum_add(0, (const volatile uint32_t *)0x22000000, 0x200000);
+    return sum_add(s, CART_W1, PL_ROM_LENGTH - 0x200000);
+}
+static uint32_t file_sum(int f) {
+    uint32_t s = 0, done = 0, len = pl_files[f].length, lin = pl_files[f].linear;
+    while (done < len) {
+        uint32_t page = PL_FIRST_PAGE, off = lin + done, n;
+        while (off >= PL_PAGE_USE) { off -= PL_PAGE_USE; page++; }
+        n = PL_PAGE_USE - off;
+        if (n > len - done) n = len - done;
+        cart_page((int)page);
+        s = sum_add(s, (const volatile uint32_t *)((volatile uint8_t *)CART_W1 + off), n);
+        done += n;
+    }
+    return s;
+}
+
+/* one preload file from the CD into its place: chunk by chunk, the page changes between chunks */
+static int file_copy(int f, uint32_t *done, uint32_t total) {
+    uint32_t len = pl_files[f].length, lin = pl_files[f].linear, nch = (len + PL_CHUNK - 1) / PL_CHUNK, c;
+    int bad = 0;
+    for (c = 0; c < nch; c++) {
+        uint32_t page = PL_FIRST_PAGE, off = lin + c * PL_CHUNK;
+        while (off >= PL_PAGE_USE) { off -= PL_PAGE_USE; page++; }
+        if (c == 0 || off == 0) {
+            cart_page((int)page);
+            SC_COMM8_32 = (0x200000u + off - c * PL_CHUNK) & 0x3FFFFCu;   /* where chunk 0 would go */
+            SC_COMM2 = (uint16_t)(0x8000 | pl_files[f].file);
+            wait_cmd(CMD_OPEN_FILE);
+            if (SC_COMM8_32 != len) return 1;                            /* not on the disc */
+        }
+        SC_COMM2 = (uint16_t)c;
+        SC_COMM12 = 0;
+        wait_cmd(CMD_CHUNK_TO_CART);
+        if (SC_COMM12 != 0) bad++;
+        show_status((uint16_t)(0x4C00 | (c & 0xFF)));
+        splash_progress(++*done, total);
+    }
+    return bad;
 }
 #endif
 
@@ -353,6 +459,69 @@ int main(void) {
     wait_cmd(68);
 #endif
 
+#if CDL_D32XR_PAGE
+    {
+        /* ---- 1. D32XR: the board, the ROM and the preload (see above) ---- */
+        uint32_t total = 0, done = 0;
+        uint8_t need[PL_COUNT + 1];
+        int mb, f, all_ok = 1, rom_bad;
+        uint16_t pad;
+        show_status(0x4D10);
+        mb = cart_probe();
+        show_status((uint16_t)(mb == 4 ? 0x4D11 : mb == 8 ? 0x4D12 : 0x4D13));
+        if (mb == 4) { splash_text(1); halt(0x4DE5); }       /* "NEEDS THE 8 MB OR 16 MB RAM CART" */
+        SC_COMM2 = FILE_D32XR;
+        wait_cmd(CMD_OPEN_FILE);
+        len = SC_COMM8_32;
+        if ((int32_t)len <= 0) halt(0x4DE1);
+        if (len != PL_ROM_LENGTH) halt(0x4DE3);
+        nchunks = (len + CHUNK_BYTES - 1) >> 15;
+        wait_cmd(48);                                         /* pad: A + B + C = copy everything */
+        pad = (uint16_t)(SC_COMM8_32 >> 16);
+        show_status(0x4D14);
+        rom_bad = (pad & 0x0070) == 0x0070 || rom_sum() != PL_ROM_SUM;
+        if (rom_bad) total += nchunks;
+        for (f = 0; f < PL_COUNT; f++) {
+            need[f] = mb == 16 && ((pad & 0x0070) == 0x0070 || file_sum(f) != pl_files[f].sum);
+            if (need[f]) total += (pl_files[f].length + PL_CHUNK - 1) / PL_CHUNK;
+        }
+        if (total) {
+            splash_text(0);                                   /* "FIRST TIME: COPYING DOOM INTO THE RAM CART" */
+            show_status(0x4D15);
+        }
+        if (rom_bad) {
+            cart_page(CDL_D32XR_PAGE);
+            SC_COMM2 = FILE_D32XR;
+            wait_cmd(CMD_OPEN_FILE);
+            SC_COMM8_32 = len;
+            for (c = 0; c < nchunks; c++) {
+                SC_COMM2 = (uint16_t)c;
+                SC_COMM12 = 0;
+                wait_cmd(CMD_CHUNK_TO_CART);
+                if (SC_COMM12 != 0) bad++;
+                show_status((uint16_t)(0x4C00 | (c & 0xFF)));
+                splash_progress(++done, total);
+            }
+            if (bad || rom_sum() != PL_ROM_SUM) halt(0x4DE2);
+        }
+        for (f = 0; f < PL_COUNT; f++) {
+            if (need[f] && (file_copy(f, &done, total) || file_sum(f) != pl_files[f].sum)) all_ok = 0;
+        }
+        /* the record the game reads (save piece 15 of page 1): the preload is in the cart */
+        {
+            static const char rec[16] = "D32XR PRELOAD OK";
+            uint16_t w[8];
+            int k;
+            for (k = 0; k < 8; k++)
+                w[k] = (mb == 16 && all_ok && PL_COUNT) ? (uint16_t)((rec[2 * k] << 8) | rec[2 * k + 1]) : 0;
+            cart_page(1);
+            piece15_write(w, 8);
+        }
+        cart_page(CDL_D32XR_PAGE);
+        show_status(0x4D16);
+        goto loaded;
+    }
+#endif
     /* ---- 1. the ROM image into the cart ---- */
     SC_COMM2 = FILE_D32XR;
     wait_cmd(CMD_OPEN_FILE);
@@ -388,9 +557,6 @@ int main(void) {
         }
     }
 
-#if CDL_SPLASH && !CDL_TARGET_OPENLARA
-    splash_text();                       /* D32XR: the game is not in the cart (yet): say so */
-#endif
     for (c = 0; c < nchunks; c++) {
         SC_COMM2 = (uint16_t)c;
         SC_COMM12 = 0;                   /* the Sub-CPU replies 0 = chunk verified */

@@ -734,6 +734,62 @@ exit_wr_sram:
         move.w  #0x2000,sr          /* enable ints */
         bra     main_loop
 
+.ifdef CD32X
+| CD32X: megasd.c is not linked (src-md/Makefile); its CD music calls are reached only when a
+| MegaSD reported CD tracks (megasd_num_cdtracks), which never happens here
+        .global MegaSD_PlayCDTrack, MegaSD_PauseCD, MegaSD_SetCDVolume
+MegaSD_PlayCDTrack:
+MegaSD_PauseCD:
+MegaSD_SetCDVolume:
+        rts
+
+| CD32X: void cd32x_cart_copy(void *dst, int page, int offset, int len)
+| Copies len bytes from page <page> of the RAM cart (offset 0 - 0x1FFFFF) to dst: the preload
+| (scd_fs.c) and its record. Window 1 shows the page meanwhile, then the game's page 7 again.
+| As read_sram: interrupts off, the SH2s wait in their command interrupt (sh2_wait), RV = 1 so
+| the 68000 sees the cart at 0x400000 (window 1 at 0x600000). Runs from work RAM (.data): with
+| RV = 1 the cart is not at 0x880000. Word copies when both addresses are even, else bytes.
+        .global cd32x_cart_copy
+cd32x_cart_copy:
+        movem.l d2-d4,-(sp)
+        movea.l 16(sp),a1           /* dst */
+        move.l  20(sp),d3           /* page */
+        movea.l 24(sp),a0           /* offset */
+        move.l  28(sp),d4           /* length */
+        move.w  sr,-(sp)
+        move.w  #0x2700,sr          /* disable ints */
+        sh2_wait
+        set_rv
+        lsl.w   #8,d3
+        move.w  d3,0xA130F2         /* window 1 = the page (D8-D10) */
+        adda.l  #0x600000,a0        /* window 1 with RV = 1 */
+        move.l  a0,d0
+        move.l  a1,d1
+        or.l    d1,d0
+        btst    #0,d0
+        bne.b   3f                  /* an odd address: bytes */
+1:
+        subq.l  #2,d4
+        bmi.b   2f
+        move.w  (a0)+,(a1)+
+        bra.b   1b
+2:
+        addq.l  #2,d4
+        beq.b   4f
+3:
+        subq.l  #1,d4
+        bmi.b   4f
+        move.b  (a0)+,(a1)+
+        bra.b   3b
+4:
+        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        clr_rv
+        sh2_cont
+        move.w  (sp)+,sr
+        movem.l (sp)+,d2-d4
+        rts
+.endif
+
 set_rom_bank:
         move.l  a0,d3
         swap    d3

@@ -287,6 +287,9 @@ static void cart_page_write(int page)
 /* OL-2: OpenLara levels.  CMD 38 with file number 100 + LevelID opens the level; CMD 46
    stores it at cart slot 16 (2 MB), where the SH2 reads it (0x02200000).  The ORDER must
    match the engine's enum LevelID (OpenLara-src/src/fixed/common.h). */
+#ifdef D32XR_CD
+#include "preload_names.h"      /* made by tools/make_preload.py: CMD 38 file 300 + n */
+#endif
 #define OL_LEVEL_BASE   100
 #define OL_LEVEL_SLOT   16
 static const char *const ol_level_files[] = {
@@ -775,6 +778,8 @@ int main(void)
             if (img_idx == 16) { strcpy(img_name, KOBO_PACK_NAME); cur_img = KOBO_PACK_SLOT; }
 #ifdef D32XR_CD
             else if (img_idx == 20) { strcpy(img_name, "D32XR.32X"); cur_img = 0; }     /* D32XR CD32X: the game's ROM at cart 0 */
+            else if (img_idx >= PRELOAD_FILE_BASE && img_idx < PRELOAD_FILE_BASE + PRELOAD_COUNT)
+                strcpy(img_name, preload_names[img_idx - PRELOAD_FILE_BASE]);   /* D32XR CD32X: the preload (COMM2 bit 15: its place) */
 #else
             else if (img_idx == 20) { strcpy(img_name, "OPENLARA.32X"); cur_img = 0; }  /* D32X M1: ROM at cart 0 */
 #endif
@@ -830,6 +835,11 @@ int main(void)
             uint32_t coff = CART_IMG_BASE + (uint32_t)cur_img * CART_SLOT + (uint32_t)off;
 #ifdef CART_PAGED
             if (cur_dest != 0xFFFFFFFFu) coff = cur_dest + (uint32_t)off;
+#ifdef D32XR_CD
+            /* D32XR CD32X: a preload file goes on in the next page at offset 0; its destination
+               (0x200000 - the file offset of that chunk) can be below 0: it wraps in the 4 MB */
+            if (cur_dest != 0xFFFFFFFFu) coff &= 0x3FFFFFu;
+#endif
 #endif
 
             if (off < length) n = (length - off + 2047) / 2048;

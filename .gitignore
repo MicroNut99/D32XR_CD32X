@@ -18,3 +18,7 @@ d32xr/romheaderfix/romheaderfix
 cd32x/subcpu/cd/
 cd32x/subcpu/ROMS/
 build_log.txt
+# made by the build (tools/make_preload.py)
+cd32x/sh2/preload.h
+cd32x/subcpu/preload_names.h
+build_*.txt

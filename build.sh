@@ -1,13 +1,15 @@
 #!/bin/bash
-# D32XR CD32X - builds the disc: Doom 32X Resurrection v3.5 booting from the Sega CD into the
-# RAM cart (8 / 16 MB board: the game's second 2 MB in page 7), with D32XR's own Sega CD code
-# (CD music, PCM sound effects) running in mega CD mode 2. README.md tells how.
+# D32XR CD32X - builds the disc: DOOM CD32X Fusion v3.0 booting from the Sega CD into the RAM
+# cart (8 / 16 MB board: the game's second 2 MB in page 7), with D32XR's own Sega CD code (WADs,
+# music, video, PCM sound effects) running in mega CD mode 2. README.md tells how.
 #
 #   ./build.sh 2>&1 | tee build_log.txt
 #
 # Needs (in the project folder's data/, never committed):
-#   - your Doom 32X Resurrection v3.5 ROM (any *.32x there, e.g. DCD32XF_V3.32x): its IWAD
+#   - your DOOM CD32X Fusion v3.0 ROM (any *.32x there, e.g. DCD32XF_V3.32x): its IWAD
 #     is the game's data (tools/extract_iwad.py takes it out once -> data/doom32xf.wad)
+#   - your DOOM CD32X Fusion disc image (DCD32XF_V3.bin or .iso): its files (WADs, music,
+#     video) go on the new disc (tools/extract_iso.py copies them once -> data/fusion/)
 #   - optional: splash.png (the picture of the loading screen: the DOOM logo)
 #   - optional: music/Track02.wav ... (CD audio tracks 2 and on); none: one silent track
 # and the D32XR team's devkit (GENDEV, default /opt/d32xr-dk/opt/toolchains/sega) for the game,
@@ -15,8 +17,10 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 trap 'echo; echo "*** BUILD FAILED at line $LINENO: $BASH_COMMAND"' ERR
-NAME="${NAME:-D32XR_CD32X_R1}"
+NAME="${NAME:-D32XR_CD32X_R2}"
 PAGE=7
+# the title fire (README: "The title fire"): on unless FIRE=0
+FIRE="${FIRE-1}"; [ "$FIRE" = 0 ] && FIRE=""; export FIRE
 DATA="$HERE/data"
 ROMS="$HERE/cd32x/subcpu/ROMS"
 mkdir -p "$ROMS" "$HERE/build"
@@ -27,9 +31,18 @@ if [ ! -f "$DATA/doom32xf.wad" ]; then
   [ -n "$ROM" ] || { echo "*** put your Doom 32X Resurrection v3.5 ROM (.32x) in $DATA - stopping"; exit 1; }
   python3 "$HERE/tools/extract_iwad.py" "$ROM" "$DATA/doom32xf.wad"
 fi
-echo "==> game (D32XR v3.5, CD32X=1)"
-bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
+if [ ! -f "$DATA/fusion/SOUNDS.WAD" ]; then
+  IMG="$(ls "$DATA"/*.bin "$DATA"/*.BIN "$DATA"/*.iso "$DATA"/*.ISO 2>/dev/null | head -1)"
+  [ -n "$IMG" ] || { echo "*** put your DOOM CD32X Fusion disc image (.bin or .iso) in $DATA - stopping"; exit 1; }
+  python3 "$HERE/tools/extract_iso.py" "$IMG" "$DATA/fusion"
+fi
+echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
+python3 "$HERE/tools/make_preload.py" plan "$DATA/fusion" "$HERE/build/preload.json" \
+        "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
+echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
+PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
+python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" "$DATA/splash.png" "$ROMS/IMAGE.RAW"
 else                               python3 "$HERE/tools/make_splash.py" - "$ROMS/IMAGE.RAW"; fi
@@ -38,10 +51,10 @@ cd "$HERE/cd32x/sh2" && make -f Makefile.cdloader clean > /dev/null \
   && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=1 -DCDL_D32XR_PAGE=$PAGE"
 echo "==> Sub-CPU and 68000 listener"
 cd "$HERE/cd32x/subcpu" && make clean > /dev/null \
-  && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="${CDFS:+$DATA/fusion}"
+  && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DATA/fusion"
 ISO="$HERE/cd32x/subcpu/CDROMPlayer.iso"
 grep -a -q "SH2-D32XR-CD-M1-LOADER" "$ISO" || { echo "*** the disc does not hold the D32XR loader - stopping"; exit 1; }
-for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW; do
+for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW SOUNDS.WAD DOOM.WAD VIDEO/IDLOGO.ROQ; do
   [ -f "$HERE/cd32x/subcpu/cd/$f" ] || { echo "*** $f is not on the disc - stopping"; exit 1; }
 done
 cmp -s "$HERE/cd32x/subcpu/cd/D32XR.32X" "$ROMS/D32XR.32X" || { echo "*** the disc has an old game - stopping"; exit 1; }

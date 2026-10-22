@@ -215,6 +215,12 @@ void I_InitMenuFire(jagobj_t *titlepic)
 	int i, j;
 	int titlepos = gameinfo.titleStartPos;
 	int stopticon = gameinfo.stopFireTime;
+#ifdef FIRE_DEFAULT_TIME
+	/* CD32X: the Fusion WADs' DMAPINFO say stopFireTime = 0 (no fire): burn for
+	   FIRE_DEFAULT_TIME tics then, as Resurrection v3.5's IWAD does (470) */
+	if (stopticon <= 0)
+		stopticon = FIRE_DEFAULT_TIME;
+#endif
 #endif	
 	const byte* doompalette;
 

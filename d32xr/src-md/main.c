@@ -11,8 +11,10 @@ extern uint16_t cd_ok;
 extern uint16_t megasd_ok, megasd_num_cdtracks;
 extern uint16_t everdrive_ok;
 
+#ifndef CD32X
 extern uint16_t InitMegaSD(void);
 extern uint16_t InitEverDrive(void);
+#endif
 
 extern void do_main(void);
 extern uint16_t InitCD(void);
