@@ -41,11 +41,25 @@ def area_resize_linear(img, w, h):
         out.append(np.asarray(ch.resize((w, h), Image.BOX), np.float64) / 65535)
     return np.stack(out, -1)
 
+def gaussian_wrap(a, sigma, truncate=4.0):
+    """Gaussian blur with wrap-around edges (what scipy.ndimage.gaussian_filter(a, sigma, mode='wrap')
+    does, in plain NumPy: the same kernel, one axis after the other)"""
+    r = int(truncate * sigma + 0.5)
+    x = np.arange(-r, r + 1)
+    k = np.exp(-0.5 / (sigma * sigma) * x * x)
+    k /= k.sum()
+    out = np.asarray(a, np.float64)
+    for axis in range(out.ndim):
+        acc = np.zeros_like(out)
+        for off, wt in zip(x, k):
+            acc += wt * np.roll(out, -off, axis=axis)
+        out = acc
+    return out
+
 def to_palette(lin, pal, dither=0.0, sharpen=0.0):
     """linear RGB (h, w, 3) -> palette indices (h, w); optional unsharp mask and error diffusion (in linear light)"""
     if sharpen:
-        from scipy.ndimage import gaussian_filter
-        blur = np.stack([gaussian_filter(lin[..., c], 0.7, mode='wrap') for c in range(3)], -1)
+        blur = np.stack([gaussian_wrap(lin[..., c], 0.7) for c in range(3)], -1)
         lin = np.clip(lin + sharpen * (lin - blur), 0, 1)
     if not dither:
         return pal.nearest(lin_to_lab(lin))
