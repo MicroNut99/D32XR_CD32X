@@ -39,6 +39,14 @@
 #define RoQ_SAMPLE_MAX          1032
 #define RoQ_SAMPLE_CENTER       (RoQ_SAMPLE_MAX-RoQ_SAMPLE_MIN)/2
 
+/* a 16-bit RoQ sample (0..65535) -> the PWM value. CD32X: half the swing around the centre (-6 dB):
+   the full-scale video sound came out harsh and over-driven */
+#ifdef CD32X
+#define RoQ_PWM(v)              (RoQ_SAMPLE_MIN + 256 + ((unsigned)(v) >> 7))
+#else
+#define RoQ_PWM(v)              (RoQ_SAMPLE_MIN + ((unsigned)(v) >> 6))
+#endif
+
 #define RoQ_MAX_SAMPLES         316 // 70Hz
 
 //#define RoQ_ATTR_SDRAM  __attribute__((section(".data"), aligned(16)))
@@ -187,7 +195,7 @@ static void roq_snddma1_load_samples(void)
                 if (l_newval & c_hi) l_newval = c_hi-1;
                 else if (l_newval < 0) l_newval = 0;
 
-                *s++ = RoQ_SAMPLE_MIN + ((unsigned)l_newval >> 6);
+                *s++ = RoQ_PWM(l_newval);
             }
 
             snd_lr[0] = l_newval;
@@ -222,7 +230,7 @@ static void roq_snddma1_load_samples(void)
                 if (l_newval & c_hi) l_newval = c_hi-1;
                 else if (l_newval < 0) l_newval = 0;
 
-                *s++ = RoQ_SAMPLE_MIN + ((unsigned)l_newval >> 6);
+                *s++ = RoQ_PWM(l_newval);
 
                 v = *b & 127;
 #if 0
@@ -243,7 +251,7 @@ static void roq_snddma1_load_samples(void)
                 if (r_newval & c_hi) r_newval = c_hi-1;
                 else if (r_newval < 0) r_newval = 0;
 
-                *s++ = RoQ_SAMPLE_MIN + ((unsigned)r_newval >> 6);
+                *s++ = RoQ_PWM(r_newval);
             }
 
             snd_lr[0] = l_newval;
@@ -265,14 +273,14 @@ static void roq_snddma1_load_samples(void)
 
     if (snd_channels == 1)
     {
-        int l_lastval = RoQ_SAMPLE_MIN + ((uint16_t)snd_lr[0] >> 6);
+        int l_lastval = RoQ_PWM((uint16_t)snd_lr[0]);
         for (; i < RoQ_MAX_SAMPLES; i++)
             *s++ = l_lastval;
     }
     else
     {
-        int l_lastval = RoQ_SAMPLE_MIN + ((uint16_t)snd_lr[0] >> 6);
-        int r_lastval = RoQ_SAMPLE_MIN + ((uint16_t)snd_lr[1] >> 6);
+        int l_lastval = RoQ_PWM((uint16_t)snd_lr[0]);
+        int r_lastval = RoQ_PWM((uint16_t)snd_lr[1]);
         for (; i < RoQ_MAX_SAMPLES; i++)
         {
             *s++ = l_lastval;
