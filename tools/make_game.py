@@ -996,8 +996,16 @@ class Converter:
             if umap.get(m, {}).get('intertext'):
                 endtext = umap[m]['intertext']
         txt = lambda t: t.upper().replace('"', "'").replace('\n', '*')
+        # --music cd: the disc's CD audio tracks instead (the SIGIL CD audio disc, build.sh MUSIC=sigil):
+        # the 11 songs on tracks --cdtrack .. --cdtrack + 10 (DMAPINFO cdTrack n = the disc's track n + 1)
+        cdt = lambda song: self.args.cdtrack + order.index(song)
+        if self.args.music == 'cd':
+            mus_cfg = ['    cdMusic = 1', '    titleCdTrack = %d' % cdt('D_INTRO'), '    intermissionCdTrack = %d' % cdt('D_INTER'),
+                       '    victoryCdTrack = %d' % cdt('D_INTER'), '    endCdTrack = %d' % cdt('D_INTER')]
+        else:
+            mus_cfg = ['    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir]
         dm = ['gameinfo', '{', '    titleMus = "D_INTRO"', '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
-              '    endMus = "D_INTER"', '    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir, '    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
+              '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
               '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % txt(endtext),
               '    endFlat = "MFLR8_3"', '\tendShowCast = 0', '\tstopFireTime = 0', '\ttitleStartPos = 0',
               '\tnoAttractDemo = 1', '}']
@@ -1011,7 +1019,10 @@ class Converter:
             if nxt(m):
                 e.append('    next = "%s"' % nxt(m))
             song = (u.get('music') or 'D_E%dM%s' % (ep, m[-1])).upper()
-            e += ['    mapnumber = %d' % (i + 1), '    music = "%s"' % (song if song in order else 'D_E%dM%s' % (ep, m[-1]))]
+            song = song if song in order else 'D_E%dM%s' % (ep, m[-1])
+            e += ['    mapnumber = %d' % (i + 1), '    music = "%s"' % song]
+            if self.args.music == 'cd':
+                e.append('    cdTrack = %d' % cdt(song))
             if nxt(m, 'nextsecret'):
                 e.append('\tsecretnext = "%s"' % nxt(m, 'nextsecret'))
             if i == 0:
@@ -1070,6 +1081,9 @@ def main():
     ap.add_argument('--pc', required=True, nargs='+', help='the PC IWAD (and PWADs on top)')
     ap.add_argument('--title', help='SIGIL: the title picture')
     ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture')
+    ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',
+                    help='SIGIL: streamed PCM files on the data track (spcm) or the disc\'s CD audio tracks (cd)')
+    ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL --music cd: the cdTrack of its title song (11 tracks: title, E?M1-9, intermission)')
     ap.add_argument('--maxlevel', type=int, default=175, help='KB of RAM a level may take (bigger maps are left out)')
     ap.add_argument('--base', required=True)
     ap.add_argument('--fusion', required=True)

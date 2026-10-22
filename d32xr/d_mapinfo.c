@@ -78,6 +78,7 @@ static const struct {
 	{GI_INT_FIELD(cdTrackOffset)},
 #ifdef CD32X
 	{GI_INT_FIELD(musicStream)},
+	{GI_INT_FIELD(cdMusic)},
 #endif
 };
 

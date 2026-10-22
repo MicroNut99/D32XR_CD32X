@@ -24,6 +24,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 trap 'echo; echo "*** BUILD FAILED at line $LINENO: $BASH_COMMAND"' ERR
 NAME="${NAME:-D32XR_CD32X_R2}"
 PAGE=7
+# the music (README "Music"): MUSIC=idkfa (default) - CD audio = Fusion's IDKFA soundtrack, SIGIL's
+# songs streamed from the data track; MUSIC=sigil - CD audio = SIGIL's and SIGIL II's songs
+MUSIC="${MUSIC:-idkfa}"
 # the title fire (README: "The title fire"): on unless FIRE=0
 FIRE="${FIRE-1}"; [ "$FIRE" = 0 ] && FIRE=""; export FIRE
 DATA="$HERE/data"
@@ -60,8 +63,9 @@ if [ -f "$DATA/plutonia.wad" ]; then
 fi
 # SIGIL / SIGIL II (README "SIGIL"): episodes 5 / 6 on top of your doom.wad, music = the disc's CD audio
 for G in sigil sigil2; do
-  if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil; OUTW=SIGIL.WAD
-  else                    PW=sigil2.wad; PIC=Sigil2; OUTW=SIGIL_II.WAD; fi
+  if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil; OUTW=SIGIL.WAD; CDT=1
+  else                    PW=sigil2.wad; PIC=Sigil2; OUTW=SIGIL_II.WAD; CDT=12; fi
+  SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
   # the pictures: your <name>_1.jpg / .jpg first (newart: <name>_1.jpg made at 320 x 224), else the .webp from the SIGIL download; the tally
   # background: sigil-wallpaper_1.jpg (made at 320 x 224: used as it is), else sigil-wallpaper.jpg
@@ -69,14 +73,14 @@ for G in sigil sigil2; do
   WALL="$(ls "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
   echo "==> $OUTW (from data/sigil/$PW)"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
-          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" \
+          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $SMUS \
           --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
     || { tail -20 "$HERE/build/${G}_log.txt"; echo "*** $OUTW failed"; exit 1; }
   tail -1 "$HERE/build/${G}_log.txt"
 done
 # SIGIL's and SIGIL II's music: streamed PCM files on the data track (folders SIGIL/ and SIGIL2/,
 # tools/make_spcm.py) from data/sigil_cdda/Track02-23.wav (tools/make_sigil_cdda.sh)
-if [ -f "$DISC/SIGIL.WAD" ] || [ -f "$DISC/SIGIL_II.WAD" ]; then
+if [ "$MUSIC" != sigil ] && { [ -f "$DISC/SIGIL.WAD" ] || [ -f "$DISC/SIGIL_II.WAD" ]; }; then
   if [ -f "$DATA/sigil_cdda/Track23.wav" ]; then
     echo "==> SIGIL music (streamed PCM files, from data/sigil_cdda)"
     python3 "$HERE/tools/make_spcm.py" "$DATA/sigil_cdda" "$DISC" > "$HERE/build/spcm_log.txt" \
@@ -114,7 +118,12 @@ MUS="$HERE/build/music"; rm -rf "$MUS"; mkdir -p "$MUS"
 # the CD audio tracks: the soundtrack of DOOM, DOOM II, Resurrection and Plutonia (the music option
 # CD), numbered as Fusion's WADs number them (README "CD audio"): data/music/Track02.wav ...
 IDKFA="${IDKFA:-$HERE/DOOM CD32X FUSION V3 with IDKFA Soundtrack/DOOM CD32X FUSION V3 with IDKFA Soundtrack.cue}"
-if ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
+if [ "$MUSIC" = sigil ]; then
+  # the SIGIL CD audio disc: SIGIL's songs on tracks 2-12, SIGIL II's on 13-23 (tools/make_sigil_cdda.sh)
+  ls "$DATA"/sigil_cdda/Track*.wav > /dev/null 2>&1 || { echo "*** MUSIC=sigil needs data/sigil_cdda/Track02-23.wav"; exit 1; }
+  cp "$DATA"/sigil_cdda/Track*.wav "$MUS"/
+  echo "    $(ls "$MUS" | wc -l) audio tracks: SIGIL's and SIGIL II's songs"
+elif ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
   cp "$DATA"/music/Track*.wav "$MUS"/
   echo "    $(ls "$MUS" | wc -l) audio tracks from data/music"
 elif [ -f "$IDKFA" ]; then

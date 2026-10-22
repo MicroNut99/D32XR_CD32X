@@ -897,6 +897,16 @@ void S_StartSong(int musiclump, int looping, int cdtrack)
 		int savetype = musictype;
 		if (musictype != mustype_none && gameinfo.musicStream && spcmDir[0])
 			musictype = mustype_spcm;
+		/* cdMusic = 1 (SIGIL on the SIGIL CD audio disc): its CD tracks, whatever the option */
+		if (musictype != mustype_none && gameinfo.cdMusic)
+		{
+			if (cdtrack <= 0 || !S_CDAvailable())
+			{
+				S_StopSong();
+				return;
+			}
+			musictype = mustype_cd;
+		}
 		if (musictype != mustype_cd)
 			cdplay_track = 0;
 		S_StartSong2(musiclump, looping, cdtrack);
