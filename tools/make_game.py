@@ -776,8 +776,15 @@ class Converter:
         img = img.convert('RGB')
         target = 4 / 3                                  # the TV picture the 320 x 224 screen fills
         iw, ih = img.size
-        if fit:
-            m = 1.12                                    # 6 % margin on each side
+        if iw == w and abs(ih - h) <= 8:
+            # made for the screen (320 x 224 for the 320 x 220 title): used as it is, centred
+            canvas = Image.new('RGB', (w, h), (0, 0, 0))
+            canvas.paste(img, (0, (h - ih) // 2))
+            img = canvas
+        elif fit is None:
+            pass
+        elif fit:
+            m = 1.0 if fit is True else fit             # fit=1.12: a 6 % margin on each side
             cw, ch = max(iw * m, ih * m * target), max(ih * m, iw * m / target)
             cw, ch = int(round(cw)), int(round(ch))
             canvas = Image.new('RGB', (cw, ch), (0, 0, 0))
@@ -981,7 +988,7 @@ class Converter:
         lumps.append(('CREDITS1', credits1.encode('latin1')))
         lumps.append(('CREDITS2', self.fusion_lump('DOOM.WAD', 'CREDITS2')))
         lumps += self.convert_maps([(m, sky) for m in fits])
-        lumps.append(('TITLE', jagpic(320, 220, self.image_picture(self.args.title, 320, 220))))
+        lumps.append(('TITLE', jagpic(320, 220, self.image_picture(self.args.title, 320, 220, fit=True))))
         lumps.append(('INTERPIC', jagpic(320, 224, self.image_picture(self.args.interpic, 320, 224))))
         for n in ('M_DOOM', 'PERCENT', 'I_KILLS', 'I_ITEMS', 'I_SECRET', 'I_LEVEL', 'I_FINISH'):
             lumps.append((n, self.fusion_lump('DOOM.WAD', n)))

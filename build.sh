@@ -53,12 +53,16 @@ if [ -f "$DATA/plutonia.wad" ]; then
 fi
 # SIGIL / SIGIL II (README "SIGIL"): episodes 5 / 6 on top of your doom.wad, music = the disc's CD audio
 for G in sigil sigil2; do
-  if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil.webp; CDT=1; OUTW=SIGIL.WAD
-  else                    PW=sigil2.wad; PIC=Sigil2.webp; CDT=12; OUTW=SIGIL_II.WAD; fi
+  if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil; CDT=1; OUTW=SIGIL.WAD
+  else                    PW=sigil2.wad; PIC=Sigil2; CDT=12; OUTW=SIGIL_II.WAD; fi
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
+  # the pictures: your <name>_1.jpg / .jpg first (newart: <name>_1.jpg made at 320 x 224), else the .webp from the SIGIL download; the tally
+  # background: sigil-wallpaper_1.jpg (made at 320 x 224: used as it is), else sigil-wallpaper.jpg
+  PIC="$(ls "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp" 2>/dev/null | head -1)"
+  WALL="$(ls "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
   echo "==> $OUTW (from data/sigil/$PW)"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
-          --fusion "$DATA/fusion" --title "$DATA/sigil/$PIC" --interpic "$DATA/sigil/sigil-wallpaper.jpg" --cdtrack $CDT \
+          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" --cdtrack $CDT \
           --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
     || { tail -20 "$HERE/build/${G}_log.txt"; echo "*** $OUTW failed"; exit 1; }
   tail -1 "$HERE/build/${G}_log.txt"

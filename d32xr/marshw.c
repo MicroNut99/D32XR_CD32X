@@ -44,6 +44,14 @@ uint16_t mars_framebuffer_height = 224;
 
 uint16_t mars_cd_ok = 0;
 uint16_t mars_num_cd_tracks = 0;
+#ifdef CD32X
+/* CD32X: counts the requests that make the drive read the disc (file open / read, directory,
+   sound effects): a read stops CD audio playback (marssound.c restarts it afterwards) */
+volatile unsigned mars_cd_reads = 0;
+#define CD32X_COUNT_READ() (mars_cd_reads++)
+#else
+#define CD32X_COUNT_READ()
+#endif
 
 uint16_t mars_refresh_hz = 0;
 
@@ -813,6 +821,7 @@ int Mars_OpenCDFileByName(const char *name, int *poffset)
 	int backup[256];
 	char *fb = (char *)(&MARS_FRAMEBUFFER + 0x100), *ptr;
 
+	CD32X_COUNT_READ();
 	if (!*name) {
 		return -1;
 	}
@@ -841,6 +850,7 @@ int Mars_OpenCDFileByName(const char *name, int *poffset)
 
 void Mars_OpenCDFileByOffset(int length, int offset)
 {
+	CD32X_COUNT_READ();
 	if (length < 0)
 		return;
 
@@ -861,6 +871,7 @@ int Mars_ReadCDFile(int length)
 	int words = length / 2 + 1;
 	short *fb = (short *)(&MARS_FRAMEBUFFER + 0x100);
 
+	CD32X_COUNT_READ();
 	while (MARS_SYS_COMM0) {}
 
 	do {
@@ -936,6 +947,7 @@ void Mars_MCDLoadSfxFileOfs(uint16_t start_id, int numsfx, const char *name, int
 {
 	void *ptr;
 
+	CD32X_COUNT_READ();
 	if (!*name) {
 		return;
 	}
@@ -954,6 +966,7 @@ void Mars_MCDLoadSfxFileOfs(uint16_t start_id, int numsfx, const char *name, int
 
 int Mars_MCDReadDirectory(const char *path)
 {
+	CD32X_COUNT_READ();
 	if (!*path) {
 		return -1;
 	}

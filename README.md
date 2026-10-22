@@ -111,8 +111,8 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 
 **The pictures:**
 - PLUTONIA: its own TITLEPIC, INTERPIC and BOSSBACK.
-- SIGIL: title `sigil.webp`. SIGIL II: title `Sigil2.webp`.
-- Both SIGILs: `sigil-wallpaper.jpg` behind the kill / item / secret tally between levels (the `INTERPIC`).
+- SIGIL: title `sigil.jpg` (else `sigil.webp`). SIGIL II: title `Sigil2_1.jpg` (made at 320 x 224, used as it is; else `Sigil2.jpg` / `Sigil2.webp`). The whole logo is shrunk to fit the screen.
+- Both SIGILs: `sigil-wallpaper_1.jpg` (made at 320 x 224, used as it is; else `sigil-wallpaper.jpg`) behind the kill / item / secret tally between levels (the `INTERPIC`).
 
 **The 32X's RAM is the limit.** A level and its textures share about 177 KB of the 32X's memory. This figure was measured in ares on all 32 Plutonia maps: what the texture cache had left, plus the level's own data.
 - A map whose level data alone is bigger than that cannot load (`Z_Malloc failed`), so it is left out. The episode's "next" goes on to the next map that fits.
@@ -141,6 +141,7 @@ SIGIL and SIGIL II play their music from the disc's **CD audio tracks**. The oth
 **In the game** (`d32xr/marssound.c`, `d_mapinfo.c`, under `CD32X`):
 - A WAD whose DMAPINFO `gameinfo` says `cdMusic = 1` plays the CD track that its `cdTrack` / `titleCdTrack` / `intermissionCdTrack` fields name, whatever the music option says.
 - Turning the music off still turns it off.
+- **The drive cannot play CD audio and read data at once:** every read (a level's lumps, the intermission's pictures) stops the track. The game counts its disc reads (`marshw.c`, `mars_cd_reads`), and half a second after the last one it starts the level's or the intermission's track again (`S_UpdateSounds`).
 - The other games never play CD audio, because the disc's tracks are SIGIL's. For them the CD music option means FM.
 
 ## Building

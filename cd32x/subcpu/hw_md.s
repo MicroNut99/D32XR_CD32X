@@ -294,8 +294,8 @@ cmd_table:
 | in its ROM (tools/patch_d32xr_cdboot.py), rebuilds the BIOS interrupt jumps itself.
 start_d32xr:
         move.w  #0x2700,sr
-        move.l  #0xC0000000,0xC00004    /* M1b checkpoint: backdrop (CRAM 0) RED = the 68K */
-        move.w  #0x000E,0xC00000        /* got this command and is about to jump            */
+        move.l  #0xC0000000,0xC00004    /* backdrop (CRAM 0) black while D32XR starts (it was the */
+        move.w  #0x0000,0xC00000        /* M1b debug checkpoint RED: a red flash around the screen) */
         move.w  #0,0xA15104             /* cart bank select = 0 */
         move.b  #0,0xA15107             /* RV off */
         jmp     0x880800

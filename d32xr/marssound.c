@@ -9,6 +9,26 @@
 //#define MAX_SAMPLES      440		// 50Hz
 //#define MAX_SAMPLES      734		// 30Hz
 
+#ifdef CD32X
+/* CD32X: the drive cannot play CD audio and read data at once - every read (the level's lumps,
+   the intermission's pictures) stops the track that is playing. The track that should be playing
+   is kept here; once the reads have been quiet for CDPLAY_QUIET tics, S_UpdateSounds starts it
+   again (looping tracks only: the levels, the intermission, the end). */
+#define CDPLAY_QUIET 15
+static int cdplay_track = 0, cdplay_loop = 0, cdplay_quiet = 0, cdplay_stopped = 0;
+static unsigned cdplay_reads = 0;
+
+static void S_CDPlayStarted(int track, int looping)
+{
+	cdplay_track = track;
+	cdplay_loop = looping;
+	cdplay_reads = mars_cd_reads;
+	cdplay_quiet = 0;
+	cdplay_stopped = 0;
+}
+#endif
+
+
 #define SAMPLE_RATE      22050
 #define SAMPLE_MIN       2
 #define SAMPLE_MAX       1032
@@ -711,6 +731,24 @@ int S_PreUpdateSounds(void)
 
 void S_UpdateSounds(void)
 {
+#ifdef CD32X
+	if (cdplay_track && cdplay_loop)
+	{
+		if (mars_cd_reads != cdplay_reads)
+		{
+			/* the disc was read: the track has stopped */
+			cdplay_reads = mars_cd_reads;
+			cdplay_quiet = 0;
+			cdplay_stopped = 1;
+		}
+		else if (cdplay_stopped && ++cdplay_quiet >= CDPLAY_QUIET)
+		{
+			Mars_PlayTrack(1, cdplay_track, cd_pwad_name, -1, 0, 1);
+			cdplay_reads = mars_cd_reads;
+			cdplay_stopped = 0;
+		}
+	}
+#endif
 	if (oldmusvol != musicvolume) {
 		if (S_CDAvailable()) {
 			int vol = musicvolume*4;
@@ -838,6 +876,7 @@ int S_SongForName(const char *str)
 #ifdef CD32X
 static void S_StartSong2(int musiclump, int looping, int cdtrack);
 #endif
+
 void S_StartSong(int musiclump, int looping, int cdtrack)
 {
 #ifndef CD32X
@@ -869,6 +908,8 @@ void S_StartSong(int musiclump, int looping, int cdtrack)
 			else if (musictype == mustype_cd)
 				musictype = mustype_fm;
 		}
+		if (musictype != mustype_cd)
+			cdplay_track = 0;
 		S_StartSong2(musiclump, looping, cdtrack);
 		musictype = savetype;
 	}
@@ -902,6 +943,9 @@ static void S_StartSong2(int musiclump, int looping, int cdtrack)
 		if (curcdtrack == cdtrack && muslooping == looping)
 		{
 			Mars_PlayTrack(1, playtrack, cd_pwad_name, -1, 0, looping);
+#ifdef CD32X
+			S_CDPlayStarted(playtrack, looping);
+#endif
 			return;
 		}
 	}
@@ -966,6 +1010,9 @@ static void S_StartSong2(int musiclump, int looping, int cdtrack)
 if (musictype == mustype_cd)
 	{
 		Mars_PlayTrack(1, playtrack, cd_pwad_name, -1, 0, looping);
+#ifdef CD32X
+		S_CDPlayStarted(playtrack, looping);
+#endif
 		return;
 	}
 
@@ -997,6 +1044,9 @@ void S_StartSongByName(const char *name, int looping, int cdtrack)
 
 void S_StopSong(void)
 {
+#ifdef CD32X
+	cdplay_track = 0;
+#endif
 	Mars_StopTrack();
 	curmusic = mus_none;
 	curcdtrack = cdtrack_none;

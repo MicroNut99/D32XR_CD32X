@@ -56,6 +56,9 @@ extern volatile unsigned mars_pwdt_ovf_count;
 extern volatile unsigned mars_swdt_ovf_count;
 extern uint16_t mars_cd_ok;
 extern uint16_t mars_num_cd_tracks;
+#ifdef CD32X
+extern volatile unsigned mars_cd_reads;
+#endif
 extern uint16_t mars_framebuffer_height;
 
 extern uint16_t mars_refresh_hz;
