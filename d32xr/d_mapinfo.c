@@ -75,7 +75,10 @@ static const struct {
 	{GI_INT_FIELD(noAttractDemo)},
 	{GI_INT_FIELD(stopFireTime)},
 	{GI_INT_FIELD(titleStartPos)},
-	{GI_INT_FIELD(cdTrackOffset)}
+	{GI_INT_FIELD(cdTrackOffset)},
+#ifdef CD32X
+	{GI_INT_FIELD(cdMusic)},
+#endif
 };
 
 #define MI_STR_FIELD(f) offsetof(dmapinfo_t,f),offsetof(dworkmapinfo_t,f)

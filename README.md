@@ -99,6 +99,50 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 - The untouched Resurrection v3.5 ROM, for comparison: clean.
 - The build before the fix: the band.
 
+## More games: PLUTONIA, SIGIL, SIGIL II
+
+`build.sh` adds three games to the select menu when your PC WADs are in `data/` (`tools/make_game.py` converts them):
+
+| Game | Your files | Maps on the disc |
+|---|---|---|
+| **PLUTONIA** | `data/plutonia.wad`, optional `data/hires/*.pk3` (the 1K texture pack) | MAP01-27, MAP30-32 (MAP28 and MAP29 left out) |
+| **SIGIL** | `data/doom.wad`, `data/sigil/sigil.wad`, `sigil.webp`, `sigil-wallpaper.jpg` | E5M1, E5M2, E5M3, E5M8 |
+| **SIGIL II** | `data/doom.wad`, `data/sigil/sigil2.wad`, `Sigil2.webp`, `sigil-wallpaper.jpg` | E6M2, E6M3, E6M9 |
+
+**The pictures:**
+- PLUTONIA: its own TITLEPIC, INTERPIC and BOSSBACK.
+- SIGIL: title `sigil.webp`. SIGIL II: title `Sigil2.webp`.
+- Both SIGILs: `sigil-wallpaper.jpg` behind the kill / item / secret tally between levels (the `INTERPIC`).
+
+**The 32X's RAM is the limit.** A level and its textures share about 177 KB of the 32X's memory. This figure was measured in ares on all 32 Plutonia maps: what the texture cache had left, plus the level's own data.
+- A map whose level data alone is bigger than that cannot load (`Z_Malloc failed`), so it is left out. The episode's "next" goes on to the next map that fits.
+  - PLUTONIA: MAP28 and MAP29 failed in ares.
+  - SIGIL: E5M4-7 and E5M9 are 190-390 KB.
+  - SIGIL II: all but E6M2, E6M3 and E6M9 are 245-350 KB.
+- **Textures:** each map gets what is left over as a budget for its own textures, flats and sky (`tools/plutonia_budgets.txt` for Plutonia, measured; the same measurement as a formula for the SIGILs).
+  - What is seen most per byte goes in first: flats by their floor area, walls by their length.
+  - A texture that does not fit is drawn as the base game's closest-looking texture of the same size (the build report lists every one).
+  - The SIGIL maps on the disc are so big that almost nothing is left for their own textures, so most of their walls show base-game look-alikes.
+- **The 1K texture pack** is new art drawn for those names, not an upscale of the originals. Its pictures are shrunk to the textures' real sizes (averaged in linear light, then matched to the palette in CIELAB) wherever Plutonia uses a name it has.
+
+## SIGIL music: CD audio
+
+SIGIL and SIGIL II play their music from the disc's **CD audio tracks**. The other games keep Fusion's FM (VGM) music.
+
+| Disc track | |
+|---|---|
+| 2-12 | SIGIL: title, E5M1-E5M9, intermission |
+| 13-23 | SIGIL II: title, E6M1-E6M9, intermission |
+
+- **SIGIL:** cut from `SIGIL-DOOM-OPL-Soundtrack.mp4` (James Paddock's MIDIs played on an OPL chip). The cuts sit at the video's caption changes, in the silence or fade between two songs.
+- **SIGIL II:** that video only has SIGIL, so SIGIL II's MIDIs are played through an OPL3 emulator (libADLMIDI, Nuked OPL3) with DOOM's own DMX instruments, the same kind of sound as the video. Each track is one pass of the song, then 9.6 s of its loop fading out, like the video's. The level is raised 4.3 dB to match the video: that gap was measured by rendering SIGIL's MIDIs the same way.
+- `tools/make_sigil_cdda.sh <the .mp4> <sigil2.wad>` makes `data/sigil_cdda/Track02-23.wav`, and `build.sh` puts them on the disc (about 61 minutes, about 640 MB).
+
+**In the game** (`d32xr/marssound.c`, `d_mapinfo.c`, under `CD32X`):
+- A WAD whose DMAPINFO `gameinfo` says `cdMusic = 1` plays the CD track that its `cdTrack` / `titleCdTrack` / `intermissionCdTrack` fields name, whatever the music option says.
+- Turning the music off still turns it off.
+- The other games never play CD audio, because the disc's tracks are SIGIL's. For them the CD music option means FM.
+
 ## Building
 
 **Requirements** (WSL / Linux):
@@ -113,7 +157,9 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 | `data/DCD32XF_V3.32x` | your Fusion ROM: the game's data (IWAD) |
 | `data/DCD32XF_V3.bin` | your Fusion disc image: its WADs, music and video (copied once into `data/fusion/`) |
 | `data/splash.png` | the loading screen picture (the DOOM logo) |
-| `data/music/Track02.wav` ... | CD audio tracks 2 and on (the soundtrack); without them, one silent track |
+| `data/plutonia.wad`, `data/hires/*.pk3` | PLUTONIA (optional) |
+| `data/doom.wad`, `data/sigil/` (sigil.wad, sigil2.wad, sigil.webp, Sigil2.webp, sigil-wallpaper.jpg) | SIGIL, SIGIL II (optional) |
+| `data/sigil_cdda/Track02-23.wav` | SIGIL's music (`tools/make_sigil_cdda.sh`); without them, one silent track |
 
 **Build:**
 
@@ -139,6 +185,8 @@ bash build.sh 2>&1 | tee build_log.txt
 | `d32xr/src-md/main.c`, `Makefile` | No MegaSD / EverDrive code. |
 | `d32xr/m_fire.c`, `Makefile` | `FIRE_TIME`: the fire and v3.5's title time for Resurrection only (see the title fire). |
 | `d32xr/d_main.c` | The melt bug: the screen backup around `M_Start` kept with the CD (see the melt bug). |
+| `d32xr/marssound.c`, `d_mapinfo.*` | `cdMusic`: CD audio for SIGIL / SIGIL II only (see SIGIL music). |
+| `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
 
 **The boot stack** (`cd32x/`) is Hurrican CD32X P2a2's, with these changes:
 - **The loader:** D32XR mode, the loading screen and its two text lines, the board probe, the checksums, the preload copy and the record.

@@ -22,3 +22,4 @@ build_log.txt
 cd32x/sh2/preload.h
 cd32x/subcpu/preload_names.h
 build_*.txt
+__pycache__/

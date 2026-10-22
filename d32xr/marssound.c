@@ -835,14 +835,51 @@ int S_SongForName(const char *str)
 	return mus_none;
 }
 
+#ifdef CD32X
+static void S_StartSong2(int musiclump, int looping, int cdtrack);
+#endif
 void S_StartSong(int musiclump, int looping, int cdtrack)
+{
+#ifndef CD32X
+	int playtrack = 0;
+	char filename[64];
+	lumpinfo_t *l;
+#endif
+
+	if (musiclump < 0)
+		musiclump = mus_none;
+
+#ifdef CD32X
+	/* CD32X: a game whose DMAPINFO says cdMusic = 1 (SIGIL, SIGIL II) plays the disc's CD audio
+	   tracks named by its cdTrack fields, whatever the music option; the other games never play
+	   CD audio (the disc's tracks are SIGIL's), so the CD option means their FM music */
+	{
+		int savetype = musictype;
+		if (musictype != mustype_none)
+		{
+			if (gameinfo.cdMusic)
+			{
+				if (cdtrack <= 0 || !S_CDAvailable())
+				{
+					S_StopSong();
+					return;
+				}
+				musictype = mustype_cd;
+			}
+			else if (musictype == mustype_cd)
+				musictype = mustype_fm;
+		}
+		S_StartSong2(musiclump, looping, cdtrack);
+		musictype = savetype;
+	}
+}
+
+static void S_StartSong2(int musiclump, int looping, int cdtrack)
 {
 	int playtrack = 0;
 	char filename[64];
 	lumpinfo_t *l;
-
-	if (musiclump < 0)
-		musiclump = mus_none;
+#endif
 
 	if (musictype == mustype_cd)
 	{

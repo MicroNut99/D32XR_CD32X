@@ -4,7 +4,14 @@
 #include "p_local.h"
 #include "mars.h"
 
+#ifdef CD32X
+/* CD32X: up to 64 extra lumps after a map's BLOCKMAP (sky, textures, flats): the converted
+   PLUTONIA.WAD carries more of its own textures per map (tools/make_plutonia.py). The lump list
+   ends at the first lump that is not one (the next map's marker), as before. */
+#define MAX_AUX_TEXTURES 64
+#else
 #define MAX_AUX_TEXTURES 32
+#endif
 
 VINT		numvertexes;
 mapvertex_t	*vertexes;

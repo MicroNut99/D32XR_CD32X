@@ -1,0 +1,35 @@
+# PLUTONIA.WAD: RAM (KB) for each map's extras (sky, textures, flats), from ares: the texture cache
+# each map leaves after loading without extras (the zone's largest PU_LEVEL block, tools: --dump-sdram),
+# minus 24 KB that stay with the cache. Measured on the CD32X build (MAX_AUX_TEXTURES 64).
+MAP01 83    # texture cache 107 KB without extras
+MAP02 78    # texture cache 102 KB without extras
+MAP03 70    # texture cache 94 KB without extras
+MAP04 67    # texture cache 91 KB without extras
+MAP05 74    # texture cache 98 KB without extras
+MAP06 49    # texture cache 73 KB without extras
+MAP07 109    # texture cache 133 KB without extras
+MAP08 55    # texture cache 79 KB without extras
+MAP09 37    # texture cache 61 KB without extras
+MAP10 77    # texture cache 101 KB without extras
+MAP11 59    # texture cache 83 KB without extras
+MAP12 54    # texture cache 78 KB without extras
+MAP13 59    # texture cache 83 KB without extras
+MAP14 68    # texture cache 92 KB without extras
+MAP15 60    # texture cache 84 KB without extras
+MAP16 69    # texture cache 93 KB without extras
+MAP17 59    # texture cache 83 KB without extras
+MAP18 36    # texture cache 60 KB without extras
+MAP19 70    # texture cache 94 KB without extras
+MAP20 61    # texture cache 85 KB without extras
+MAP21 105    # texture cache 129 KB without extras
+MAP22 18    # texture cache 42 KB without extras
+MAP23 0    # texture cache 23 KB without extras
+MAP24 69    # texture cache 93 KB without extras
+MAP25 32    # texture cache 56 KB without extras
+MAP26 19    # texture cache 43 KB without extras
+MAP27 40    # texture cache 64 KB without extras
+MAP28 0    # does not load: the level alone is too big for the 32X (left out)
+MAP29 0    # does not load: the level alone is too big for the 32X (left out)
+MAP30 40    # texture cache 64 KB without extras
+MAP31 65    # texture cache 89 KB without extras
+MAP32 49    # texture cache 73 KB without extras

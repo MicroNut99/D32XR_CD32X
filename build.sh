@@ -11,7 +11,10 @@
 #   - your DOOM CD32X Fusion disc image (DCD32XF_V3.bin or .iso): its files (WADs, music,
 #     video) go on the new disc (tools/extract_iso.py copies them once -> data/fusion/)
 #   - optional: splash.png (the picture of the loading screen: the DOOM logo)
-#   - optional: music/Track02.wav ... (CD audio tracks 2 and on); none: one silent track
+#   - optional: plutonia.wad (+ hires/*.pk3), doom.wad + sigil/sigil.wad, sigil/sigil2.wad (+ pictures):
+#     PLUTONIA.WAD, SIGIL.WAD, SIGIL_II.WAD (tools/make_game.py)
+#   - optional: sigil_cdda/Track02..23.wav (SIGIL's music, tools/make_sigil_cdda.sh), else
+#     music/Track02.wav ... (CD audio tracks 2 and on); none: one silent track
 # and the D32XR team's devkit (GENDEV, default /opt/d32xr-dk/opt/toolchains/sega) for the game,
 # Chilly Willy's toolchain in /opt/toolchains/sega for the boot stack (cd32x/).
 set -e
@@ -36,6 +39,30 @@ if [ ! -f "$DATA/fusion/SOUNDS.WAD" ]; then
   [ -n "$IMG" ] || { echo "*** put your DOOM CD32X Fusion disc image (.bin or .iso) in $DATA - stopping"; exit 1; }
   python3 "$HERE/tools/extract_iso.py" "$IMG" "$DATA/fusion"
 fi
+# the disc's files: the Fusion disc's, plus PLUTONIA.WAD made from your plutonia.wad (a fifth game
+# in the select menu, tools/make_game.py; README "Plutonia")
+DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fusion/." "$DISC/"
+if [ -f "$DATA/plutonia.wad" ]; then
+  echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
+  PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
+  python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
+          ${PK:+--hires "$PK"} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
+          --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
+    || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD failed"; exit 1; }
+  tail -1 "$HERE/build/plutonia_log.txt"
+fi
+# SIGIL / SIGIL II (README "SIGIL"): episodes 5 / 6 on top of your doom.wad, music = the disc's CD audio
+for G in sigil sigil2; do
+  if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil.webp; CDT=1; OUTW=SIGIL.WAD
+  else                    PW=sigil2.wad; PIC=Sigil2.webp; CDT=12; OUTW=SIGIL_II.WAD; fi
+  [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
+  echo "==> $OUTW (from data/sigil/$PW)"
+  python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
+          --fusion "$DATA/fusion" --title "$DATA/sigil/$PIC" --interpic "$DATA/sigil/sigil-wallpaper.jpg" --cdtrack $CDT \
+          --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
+    || { tail -20 "$HERE/build/${G}_log.txt"; echo "*** $OUTW failed"; exit 1; }
+  tail -1 "$HERE/build/${G}_log.txt"
+done
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DATA/fusion" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
@@ -51,7 +78,7 @@ cd "$HERE/cd32x/sh2" && make -f Makefile.cdloader clean > /dev/null \
   && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=1 -DCDL_D32XR_PAGE=$PAGE"
 echo "==> Sub-CPU and 68000 listener"
 cd "$HERE/cd32x/subcpu" && make clean > /dev/null \
-  && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DATA/fusion"
+  && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DISC"
 ISO="$HERE/cd32x/subcpu/CDROMPlayer.iso"
 grep -a -q "SH2-D32XR-CD-M1-LOADER" "$ISO" || { echo "*** the disc does not hold the D32XR loader - stopping"; exit 1; }
 for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW SOUNDS.WAD DOOM.WAD VIDEO/IDLOGO.ROQ; do
@@ -61,7 +88,11 @@ cmp -s "$HERE/cd32x/subcpu/cd/D32XR.32X" "$ROMS/D32XR.32X" || { echo "*** the di
 
 echo "==> CD audio"
 MUS="$HERE/build/music"; rm -rf "$MUS"; mkdir -p "$MUS"
-if ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
+if ls "$DATA"/sigil_cdda/Track*.wav > /dev/null 2>&1; then
+  # SIGIL's and SIGIL II's music (tools/make_sigil_cdda.sh); the other games play their FM music
+  cp "$DATA"/sigil_cdda/Track*.wav "$MUS"/
+  echo "    $(ls "$MUS" | wc -l) audio tracks: SIGIL's and SIGIL II's music"
+elif ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
   cp "$DATA"/music/Track*.wav "$MUS"/
 else
   python3 - "$MUS/Track02.wav" <<'PY'
