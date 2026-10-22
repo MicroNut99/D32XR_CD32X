@@ -978,7 +978,7 @@ class Converter:
         lumps.append(('CREDITS1', credits1.encode('latin1')))
         lumps.append(('CREDITS2', self.fusion_lump('DOOM.WAD', 'CREDITS2')))
         lumps += self.convert_maps([(m, sky) for m in fits])
-        lumps.append(('TITLE', jagpic(320, 220, self.image_picture(self.args.title, 320, 220, dither=0.0, fit=True))))
+        lumps.append(('TITLE', jagpic(320, 220, self.image_picture(self.args.title, 320, 220))))
         lumps.append(('INTERPIC', jagpic(320, 224, self.image_picture(self.args.interpic, 320, 224))))
         for n in ('M_DOOM', 'PERCENT', 'I_KILLS', 'I_ITEMS', 'I_SECRET', 'I_LEVEL', 'I_FINISH'):
             lumps.append((n, self.fusion_lump('DOOM.WAD', n)))
