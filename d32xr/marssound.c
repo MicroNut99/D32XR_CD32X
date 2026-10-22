@@ -889,25 +889,14 @@ void S_StartSong(int musiclump, int looping, int cdtrack)
 		musiclump = mus_none;
 
 #ifdef CD32X
-	/* CD32X: a game whose DMAPINFO says cdMusic = 1 (SIGIL, SIGIL II) plays the disc's CD audio
-	   tracks named by its cdTrack fields, whatever the music option; the other games never play
-	   CD audio (the disc's tracks are SIGIL's), so the CD option means their FM music */
+	/* CD32X: a game whose DMAPINFO says musicStream = 1 (SIGIL, SIGIL II: no FM music of its own)
+	   plays its streamed PCM files (spcmDirs: a folder on the data track), whatever the music
+	   option; the other games follow the option (FM: their VGM music, CD: the disc's CD audio
+	   tracks, SPCM: Fusion's streamed packs) */
 	{
 		int savetype = musictype;
-		if (musictype != mustype_none)
-		{
-			if (gameinfo.cdMusic)
-			{
-				if (cdtrack <= 0 || !S_CDAvailable())
-				{
-					S_StopSong();
-					return;
-				}
-				musictype = mustype_cd;
-			}
-			else if (musictype == mustype_cd)
-				musictype = mustype_fm;
-		}
+		if (musictype != mustype_none && gameinfo.musicStream && spcmDir[0])
+			musictype = mustype_spcm;
 		if (musictype != mustype_cd)
 			cdplay_track = 0;
 		S_StartSong2(musiclump, looping, cdtrack);

@@ -6,7 +6,7 @@
 
   make_game.py --game G --pc <WAD> [<PWAD> ...] --base doom32xf.wad --fusion <Fusion disc folder>
                [--hires <1K texture pack .pk3>] [--budgets FILE] [--title PIC] [--interpic PIC]
-               [--cdtrack N] [--maxlevel KB] --out OUT.WAD [--report FILE]
+               [--maxlevel KB] --out OUT.WAD [--report FILE]
 
 The Fusion disc's games are D32XR "PWADs" (little-endian): music lumps (M_START..M_END), DMAPINFO,
 the maps as PC lumps, and after each map's BLOCKMAP up to MAX_AUX_TEXTURES lumps that the engine
@@ -822,6 +822,31 @@ class Converter:
         write_pwad(out, lumps)
         return lumps
 
+    def doom2_cd_tracks(self):
+        """Fusion's DOOM_II.WAD: the CD audio track of each map number (cdTrack, else cdTrackOffset +
+        its song's number among the music lumps M_START..M_END) and of the title / intermission /
+        victory / end"""
+        _, L = read_wad(os.path.join(self.fusion, 'DOOM_II.WAD'), '<')
+        names = [l['name'] for l in L]
+        songs = names[names.index('M_START') + 1:names.index('M_END')] if 'M_START' in names else []
+        dm = next(l['data'] for l in L if l['name'] == 'DMAPINFO').decode('latin1')
+        gi = re.search(r'gameinfo\s*\{(.*?)\}', dm, re.S | re.I)
+        out = {'maps': {}, 'cdTrackOffset': 0}
+        for k in ('cdTrackOffset', 'titleCdTrack', 'intermissionCdTrack', 'victoryCdTrack', 'endCdTrack'):
+            m = re.search(r'\b%s\s*=\s*(\d+)' % k, gi.group(1) if gi else '', re.I)
+            if m:
+                out[k] = int(m.group(1))
+        for name, body in re.findall(r'map\s+"?(\w+)"?[^{]*\{(.*?)\}', dm, re.S | re.I):
+            num = re.search(r'mapnumber\s*=\s*(\d+)', body, re.I)
+            n = int(num.group(1)) if num else (int(name[3:]) if name.upper().startswith('MAP') else 0)
+            cda = re.search(r'\bcdTrack\s*=\s*(\d+)', body, re.I)
+            mus = re.search(r'\bmusic\s*=\s*"?(\w+)"?', body, re.I)
+            if cda:
+                out['maps'][n] = int(cda.group(1))
+            elif mus and mus.group(1).upper() in songs:
+                out['maps'][n] = out['cdTrackOffset'] + songs.index(mus.group(1).upper()) + 1
+        return out
+
     def fusion_lump(self, wad, name):
         _, L = read_wad(os.path.join(self.fusion, wad), '<')
         return next(l['data'] for l in L if l['name'] == name)
@@ -870,8 +895,14 @@ class Converter:
             while n and 'MAP%02d' % n not in fits:
                 n = n + 1 if n < 30 else None
             return n
+        # the CD audio list: Plutonia plays the same CD tracks as DOOM II (Fusion's DOOM_II.WAD:
+        # map n's cdTrack = cdaNum, else cdTrackOffset + the number of its song among the music
+        # lumps, as g_game.c computes it; the title / intermission / victory / end tracks too)
+        cd2 = self.doom2_cd_tracks()
         # DMAPINFO
         dm = ['gameinfo', '{',
+              '    cdTrackOffset = %d' % cd2['cdTrackOffset']] + \
+             ['    %s = %d' % (k, cd2[k]) for k in ('titleCdTrack', 'intermissionCdTrack', 'victoryCdTrack', 'endCdTrack') if cd2.get(k)] + [
               '    titleMus = "P_TTL"', '    intermissionMus = "P_INT"', '    victoryMus = "P_READ"',
               '    endMus = "P_READ"', '    borderFlat = "FLAT5_7"', '    titleTime = 16000', '    titlePage = "title"',
               '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % P4TEXT,
@@ -886,6 +917,8 @@ class Converter:
             if nxt:
                 e.append('    next = "MAP%02d"' % nxt)
             e += ['    mapnumber = %d' % n, '    music = "%s"' % mus(n)]
+            if cd2['maps'].get(n):
+                e.append('    cdTrack = %d' % cd2['maps'][n])
             if n == 6:
                 e += ['    intermissionText = "%s"' % P1TEXT, '\tintermissionFlat = "SLIME16"']
             if n == 11:
@@ -948,20 +981,23 @@ class Converter:
                 seen.add(n)
                 n = umap.get(n, {}).get('next')
             return n if n in fits else None
-        # the music: the disc's CD audio tracks (tools/make_sigil_cdda.sh), in the order
-        # D_INTRO, D_E?M1..9, D_INTER from cdTrack --cdtrack (DMAPINFO cdTrack n = the disc's track n + 1)
+        # the music: streamed PCM files in a folder on the data track (spcmDirs; tools/make_spcm.py
+        # makes SIGIL/<song>.PCM, SIGIL2/<song>.PCM). The player finds a file by its song's music
+        # lump name, so the WAD lists the songs as (empty) music lumps; musicStream = 1 makes the
+        # game play them whatever the music option says.
         order = ['D_INTRO'] + ['D_E%dM%d' % (ep, k) for k in range(1, 10)] + ['D_INTER']
-        cdt = lambda song: self.args.cdtrack + order.index(song.upper()) if song and song.upper() in order else 0
-        lumps = [('PLAYPAL', self.pc.by['PLAYPAL']['data'])]
+        lumps = [('PLAYPAL', self.pc.by['PLAYPAL']['data']), ('M_START', b'')]
+        lumps += [(song, b'SPCM') for song in order]
+        lumps.append(('M_END', b''))
+        spcm_dir = 'SIGIL' if ep == 5 else 'SIGIL2'
         last = [m for m in fits if not nxt(m)]
         endtext = ''
         for m in maps:
             if umap.get(m, {}).get('intertext'):
                 endtext = umap[m]['intertext']
         txt = lambda t: t.upper().replace('"', "'").replace('\n', '*')
-        dm = ['gameinfo', '{', '    cdMusic = 1', '    titleCdTrack = %d' % cdt('D_INTRO'),
-              '    intermissionCdTrack = %d' % cdt('D_INTER'), '    victoryCdTrack = %d' % cdt('D_INTER'),
-              '    endCdTrack = %d' % cdt('D_INTER'), '    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
+        dm = ['gameinfo', '{', '    titleMus = "D_INTRO"', '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
+              '    endMus = "D_INTER"', '    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir, '    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
               '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % txt(endtext),
               '    endFlat = "MFLR8_3"', '\tendShowCast = 0', '\tstopFireTime = 0', '\ttitleStartPos = 0',
               '\tnoAttractDemo = 1', '}']
@@ -974,7 +1010,8 @@ class Converter:
             e = ['map "%s" "%s"' % (m, self.map_names[m]), '{', '    sky = "%s"' % sky]
             if nxt(m):
                 e.append('    next = "%s"' % nxt(m))
-            e += ['    mapnumber = %d' % (i + 1), '    cdTrack = %d' % (cdt(u.get('music')) or cdt('D_E%dM%s' % (ep, m[-1])))]
+            song = (u.get('music') or 'D_E%dM%s' % (ep, m[-1])).upper()
+            e += ['    mapnumber = %d' % (i + 1), '    music = "%s"' % (song if song in order else 'D_E%dM%s' % (ep, m[-1]))]
             if nxt(m, 'nextsecret'):
                 e.append('\tsecretnext = "%s"' % nxt(m, 'nextsecret'))
             if i == 0:
@@ -1030,7 +1067,6 @@ def main():
     ap.add_argument('--pc', required=True, nargs='+', help='the PC IWAD (and PWADs on top)')
     ap.add_argument('--title', help='SIGIL: the title picture')
     ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture')
-    ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL: the cdTrack of its title music (its 11 CD audio tracks: title, E?M1-9, intermission)')
     ap.add_argument('--maxlevel', type=int, default=175, help='KB of RAM a level may take (bigger maps are left out)')
     ap.add_argument('--base', required=True)
     ap.add_argument('--fusion', required=True)

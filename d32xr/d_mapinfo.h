@@ -81,7 +81,7 @@ typedef struct
 	uint8_t victoryCdTrack;
 	uint8_t endCdTrack;
 #ifdef CD32X
-	uint8_t cdMusic;	/* CD32X: this game's music is the disc's CD audio tracks, whatever the music option says */
+	uint8_t musicStream;	/* CD32X: this game's music is its streamed PCM files (spcmDirs), whatever the music option says */
 #endif
 	char* endText;
 	void* data;
