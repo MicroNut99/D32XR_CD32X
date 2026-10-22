@@ -9,9 +9,9 @@ DOOM CD32X Fusion v3.0 runs on **Sega CD + 32X + the 16 MB RAM cart**, booted fr
    - the game select menu
    - the WADs, the music and the sound effects through the Sega CD
 
-The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source: viciious/d32xr, tag `fusion_v3.0`, the same commit as v3.5. Built without the CD32X changes, it comes out byte for byte your Fusion ROM; only the build date in the header differs. The CD32X build also brings back the title fire (see below).
+The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source: viciious/d32xr, tag `fusion_v3.0`, the same commit as v3.5. Built without the CD32X changes, it comes out byte for byte your Fusion ROM; only the build date in the header differs. The CD32X build also brings back Resurrection's title fire and fixes the melt bug that came with it (see below).
 
-**R2 status:** in ares, the disc boots, fills the cart (first boot ~5 min), checks it at later boots (game select menu after ~50 s), reads the preloaded WADs from the cart (checked with a disc whose DOOM.WAD title lump was damaged: the title came out right), and shows the title fire. Not yet tested on the console.
+**R2 status:** in ares, the disc boots, fills the cart (first boot ~5 min), checks it at later boots (game select menu after ~50 s), reads the preloaded WADs from the cart (checked with a disc whose DOOM.WAD title lump was damaged: the title came out right), shows the fire on Resurrection's title only, and melts cleanly into the first demo. Not yet tested on the console.
 
 ## What you need
 
@@ -53,18 +53,51 @@ These are never committed.
 
 The loading screen is your DOOM logo (`data/splash.png`) with a gold bar.
 
-## The title fire (on; `FIRE=0` leaves it out)
+## Resurrection's title fire (on; `FIRE=0` leaves it out)
 
-Resurrection v3.5 has the burning title. **DOOM CD32X Fusion lost it for two reasons.**
+Resurrection v3.5 has the burning title. In this build **only RESURRECTION** gets it; DOOM, DOOM II and TNT MINI keep their titles as Fusion shows them.
+
+**Why DOOM CD32X Fusion has no fire:**
 
 1. **It no longer fit the 4 MB ROM.** The fire is a build option (`ENABLE_FIRE_ANIMATION`). Fusion's IWAD is 3,970,535 bytes. With the fire code, the program grows from 0x36000 to 0x36C00, so the ROM comes to 0x4001E7: **487 bytes more than 4 MB**. Fusion was built without the option, so the program stayed at 0x36000 and the ROM ended at 0x3FF5E7.
-2. **The Fusion WADs switch it off.** Each game's `DMAPINFO` (DOOM, DOOM II, RESURRECTION, TNT MINI) sets `stopFireTime = 0`, which means no fire, even in a build with the option. Resurrection v3.5's IWAD sets `stopFireTime = 470`.
+2. **The Fusion WADs switch it off.** RESURRECTION.WAD's `DMAPINFO` sets `stopFireTime = 0` (no fire), even in a build with the option. Resurrection v3.5's IWAD sets `stopFireTime = 470`.
 
 **The fix (CD32X build):**
 - **Room.** The MegaSD and EverDrive code (`src-md/megasd.c`, `everdrive.c`) is no longer linked. It is never used on the RAM cart, and three no-op stubs stand in for its CD music calls. The program then rounds down to 0x36800, and the ROM with the fire ends at 0x3FFDE7, with 536 bytes to spare.
-- **Fire time.** `FIRE_TIME=470` (`m_fire.c`): when a game's `DMAPINFO` says `stopFireTime = 0`, the fire burns 470 tics, as in Resurrection v3.5.
+- **Fire time, Resurrection only** (`m_fire.c`, `FIRE_TIME=470`). When the game picked in the select menu is `RESURRECTION.WAD` and its `DMAPINFO` says `stopFireTime = 0`, the fire burns 470 tics, as in v3.5. The other games' title pictures are not made for the fire: DOOM's showed it as a strip across the top.
+- **Title time, Resurrection only** (`m_fire.c`). The title waits for a count of drawn frames (`titleTime`). Fusion's RESURRECTION.WAD says 13000, which is made for the fast title without the fire. With the fire drawn every frame, the title stayed up for about 4 minutes before the credits and the demo. With the fire, the build uses v3.5's 900.
 
 The WADs are not changed.
+
+## The melt bug: the "one inch mess" at the top of the first melt
+
+**What you see:** with the title fire compiled in, the first melt into the demo (from the credits screen) starts with a band of coloured garbage about 16 lines high across the top of the screen. The band moves down as the jagged edge of the melt, instead of the melt's clean black edge. It was already on the credits screen for a moment before the melt began.
+
+**The cause** (`d32xr/d_main.c`, `RunMenu`):
+1. D32XR's 68000 uses the start of the 32X frame buffer as its transfer buffer for everything it reads from the CD (`read_cd_file` in `src-md/crt0.s` copies to `MARS_FRAMEBUFFER`). Every CD read overwrites the top lines of the picture on screen.
+2. The game hides this by backing the screen up on the Mega Drive side before a CD read (`I_StoreScreenCopy`) and putting it back afterwards (`I_RestoreScreenCopy`).
+3. Between the title and the first demo, `RunMenu` calls `M_Start`, which loads the menu's graphics from the CD. Its backup and restore were wrapped in `#ifndef ENABLE_FIRE_ANIMATION`, so **every build with the fire skipped them**.
+4. On a cartridge build with the fire (Resurrection v3.5: `DISABLE_CDFS`, nothing comes from the CD) that costs nothing. On a CD build with the fire, the menu's CD data was left on the top of the credits screen. The melt into the demo captures that screen as its starting picture, so the garbage became the melt's leading edge.
+
+That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire) both look right: the bug needs **fire + CD** together.
+
+**The fix:** the backup and restore around `M_Start` are kept whenever the CD file system is on:
+
+```c
+#if !defined(ENABLE_FIRE_ANIMATION) || !defined(DISABLE_CDFS)
+	I_StoreScreenCopy();
+#endif
+	M_Start();
+#if !defined(ENABLE_FIRE_ANIMATION) || !defined(DISABLE_CDFS)
+	I_RestoreScreenCopy();
+#endif
+```
+
+**Checked in ares**, frame by frame through the credits and the first melt:
+- DOOM: clean credits, clean melt.
+- RESURRECTION: fire, then title, credits, then a clean melt into the demo.
+- The untouched Resurrection v3.5 ROM, for comparison: clean.
+- The build before the fix: the band.
 
 ## Building
 
@@ -92,7 +125,7 @@ bash build.sh 2>&1 | tee build_log.txt
 **The disc:** `discs/D32XR_CD32X_R2/D32XR_CD32X_R2.cue` (with its `.bin`), in the project folder. Burn the `.cue`.
 
 **Options:**
-- `FIRE=0`: the title as in the Fusion release, with no fire.
+- `FIRE=0`: Resurrection's title as in the Fusion release, with no fire.
 - `NAME=<name>`: the disc's name.
 
 ## What changed in D32XR (all under `CD32X` or the build options)
@@ -104,7 +137,8 @@ bash build.sh 2>&1 | tee build_log.txt
 | `d32xr/src-md/crt0.s` | Save RAM → the cart's save piece 11. `cd32x_cart_copy`: the reads from cart pages 2-6. |
 | `d32xr/src-md/scd_fs.c` | The preload: preloaded WADs are read from the cart. |
 | `d32xr/src-md/main.c`, `Makefile` | No MegaSD / EverDrive code. |
-| `d32xr/m_fire.c`, `Makefile` | `FIRE_TIME`: see the title fire. |
+| `d32xr/m_fire.c`, `Makefile` | `FIRE_TIME`: the fire and v3.5's title time for Resurrection only (see the title fire). |
+| `d32xr/d_main.c` | The melt bug: the screen backup around `M_Start` kept with the CD (see the melt bug). |
 
 **The boot stack** (`cd32x/`) is Hurrican CD32X P2a2's, with these changes:
 - **The loader:** D32XR mode, the loading screen and its two text lines, the board probe, the checksums, the preload copy and the record.

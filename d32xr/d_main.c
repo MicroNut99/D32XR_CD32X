@@ -872,13 +872,20 @@ void RunMenu (void)
 {
 #ifdef MARS
 
-#ifndef ENABLE_FIRE_ANIMATION
+/* M_Start loads the menu's graphics from the CD, and the 68000 copies what it reads from the CD
+   into the start of the 32X frame buffer (read_cd_file in src-md/crt0.s): the top lines of the
+   screen on display. The copy kept on the MD side puts them back. The original skipped it in
+   every build with the title fire (ENABLE_FIRE_ANIMATION) - harmless on a cartridge build
+   (DISABLE_CDFS: nothing comes from the CD), but with the CD the top of the credits screen was
+   left full of CD data, and the first melt into the demo started from it ("the one inch mess at
+   the top"). Fixed (CD32X): the copy is kept whenever the CD file system is on. */
+#if !defined(ENABLE_FIRE_ANIMATION) || !defined(DISABLE_CDFS)
 	I_StoreScreenCopy();
 #endif
 
 	M_Start();
 
-#ifndef ENABLE_FIRE_ANIMATION
+#if !defined(ENABLE_FIRE_ANIMATION) || !defined(DISABLE_CDFS)
 	I_RestoreScreenCopy();
 #endif
 

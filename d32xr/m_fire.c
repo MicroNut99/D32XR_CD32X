@@ -216,10 +216,25 @@ void I_InitMenuFire(jagobj_t *titlepic)
 	int titlepos = gameinfo.titleStartPos;
 	int stopticon = gameinfo.stopFireTime;
 #ifdef FIRE_DEFAULT_TIME
-	/* CD32X: the Fusion WADs' DMAPINFO say stopFireTime = 0 (no fire): burn for
-	   FIRE_DEFAULT_TIME tics then, as Resurrection v3.5's IWAD does (470) */
-	if (stopticon <= 0)
-		stopticon = FIRE_DEFAULT_TIME;
+	/* CD32X: the Fusion disc's RESURRECTION.WAD says stopFireTime = 0 (no fire) in its
+	   DMAPINFO; Resurrection v3.5's IWAD says 470. Only for Resurrection, the fire burns
+	   FIRE_DEFAULT_TIME tics then. The other games keep their title as it is: their title
+	   pictures are not made for the fire (DOOM's showed it as a strip across the top, which the
+	   first melt into the demo then dragged down the screen). */
+	if (stopticon <= 0) {
+		const char *wad = cd_pwad_name, *p;
+		for (p = cd_pwad_name; *p; p++)
+			if (*p == '/' || *p == '\\')
+				wad = p + 1;
+		if (!D_strncasecmp(wad, "RESURRECTION.WAD", 16)) {
+			stopticon = FIRE_DEFAULT_TIME;
+			/* and v3.5's title time: the title counts drawn frames (ticon), and with the fire
+			   drawn every frame Fusion's titleTime = 13000 (made for the title without the
+			   fire) kept the title up for about 4 minutes before the credits and the demo */
+			if (gameinfo.titleTime > 900)
+				gameinfo.titleTime = 900;
+		}
+	}
 #endif
 #endif	
 	const byte* doompalette;
