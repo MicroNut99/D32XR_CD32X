@@ -27,6 +27,7 @@ PAGE=7
 # the music (README "Music"): MUSIC=idkfa (default) - CD audio = Fusion's IDKFA soundtrack, SIGIL's
 # songs streamed from the data track; MUSIC=sigil - CD audio = SIGIL's and SIGIL II's songs
 MUSIC="${MUSIC:-idkfa}"
+CDONLY=""; [ "$MUSIC" = sigil ] && CDONLY=1
 # the title fire (README: "The title fire"): on unless FIRE=0
 FIRE="${FIRE-1}"; [ "$FIRE" = 0 ] && FIRE=""; export FIRE
 DATA="$HERE/data"
@@ -50,7 +51,8 @@ DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fu
 # left off the disc to make room (README "The disc"): TNT MINI, Fusion's map-testing MAPDEV.WAD (the
 # menu hides it) and the loose VGM folders (copies of music already inside the WADs; never read).
 # CUT="" keeps them all.
-CUT="${CUT-TNT_MINI.WAD MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"
+if [ "$MUSIC" = sigil ]; then CUT="${CUT-}"           # the SIGIL disc has room for everything
+else CUT="${CUT-TNT_MINI.WAD MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
 for f in $CUT; do rm -rf "$DISC/$f"; done
 if [ -f "$DATA/plutonia.wad" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
@@ -94,7 +96,7 @@ echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
-PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
+PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1 ${CDONLY:+CD32X_CDONLY=1}
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"

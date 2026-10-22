@@ -907,6 +907,11 @@ void S_StartSong(int musiclump, int looping, int cdtrack)
 			}
 			musictype = mustype_cd;
 		}
+#ifdef CD32X_CDONLY
+		/* the SIGIL CD audio disc: its CD tracks are SIGIL's - the other games keep their FM music */
+		else if (musictype == mustype_cd)
+			musictype = mustype_fm;
+#endif
 		if (musictype != mustype_cd)
 			cdplay_track = 0;
 		S_StartSong2(musiclump, looping, cdtrack);
