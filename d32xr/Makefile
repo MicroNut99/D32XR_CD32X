@@ -51,11 +51,6 @@ ifdef CD32X
 CCFLAGS += -DCD32X
 ASFLAGS += --defsym CD32X=1
 endif
-# CD32X_CDONLY=1: the SIGIL CD audio disc - its CD tracks are SIGIL's, so only cdMusic games play CD
-# audio; the music option CD means FM for the others
-ifdef CD32X_CDONLY
-CCFLAGS += -DCD32X_CDONLY
-endif
 ifdef USE_SMALL_LUMPS
 CCFLAGS += -DUSE_SMALL_LUMPS
 endif

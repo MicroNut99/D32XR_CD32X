@@ -96,7 +96,7 @@ echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
-PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1 ${CDONLY:+CD32X_CDONLY=1}
+CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
