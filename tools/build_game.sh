@@ -25,6 +25,8 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 [ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c"
 # TEST_GOD=1: emulator testing only - the player takes no damage
 [ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->player) return;\n&|' "$B/p_inter.c"
+# TEST_STATS=1: emulator testing only - r_main.c keeps the renderer's peak use against its limits (r_stat)
+[ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c"
 cd "$B"
 OPTS=""; [ -n "${FIRE:-}" ] && OPTS="ENABLE_FIRE_ANIMATION=1 FIRE_TIME=470"
 env $OPTS "$@" \

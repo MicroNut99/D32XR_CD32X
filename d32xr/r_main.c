@@ -7,6 +7,10 @@
 #include "marshw.h"
 #endif
 
+#ifdef R_STATS
+int r_stat[10], r_stat_frame[2];		/* TEST_STATS: see R_RenderPlayerView */
+#endif
+
 int16_t viewportWidth, viewportHeight;
 int16_t centerX, centerY;
 fixed_t centerXFrac, centerYFrac;
@@ -923,6 +927,9 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	tempbuf += sizeof(uint8_t) * COLUMN_CACHE_SIZE * 2 / sizeof(*tempbuf);
 
 	//I_Error("%d", ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 - tempbuf) * 2);
+#ifdef R_STATS
+	r_stat[7] = ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 - tempbuf) * 2;	/* work area left */
+#endif
 
 	I_SetThreadLocalVar(DOOMTLS_COLUMNCACHE, vd->columncache[0]);
 
@@ -1138,6 +1145,10 @@ void R_RenderPlayerView(int displayplayer)
 	t_bsp = I_GetFRTCounter() - t_bsp;
 
 	Mars_R_EndWallPrep();
+#ifdef R_STATS
+	Mars_ClearCacheLine(&vd->lastwallcmd);
+	r_stat_frame[0] = vd->lastwallcmd - vd->viswalls;
+#endif
 
 	if (!drawworld)
 	{
@@ -1163,6 +1174,25 @@ void R_RenderPlayerView(int displayplayer)
 	t_planes = I_GetFRTCounter();
 	R_DrawPlanes();
 	t_planes = I_GetFRTCounter() - t_planes;
+#ifdef R_STATS
+	/* emulator measurements (build_game.sh TEST_STATS=1): per frame, the walls, visplanes,
+	   visible subsector sectors and openings used against their limits; r_stat[] keeps the
+	   largest and how many frames reached each limit */
+	Mars_ClearCacheLine(&vd->lastvisplane);
+	Mars_ClearCacheLine(&vd->lastvissector);
+	{
+		int w = r_stat_frame[0], p = vd->lastvisplane - vd->visplanes;
+		int v = vd->lastvissector - vd->vissectors, o = vd->lastsegclip - vd->segclip;
+		r_stat[8]++;
+		if (w > r_stat[0]) r_stat[0] = w;
+		if (w >= MAXWALLCMDS) r_stat[1]++;
+		if (p > r_stat[2]) r_stat[2] = p;
+		if (p >= MAXVISPLANES) r_stat[3]++;
+		if (v > r_stat[4]) r_stat[4] = v;
+		if (v >= MAXVISSSEC) r_stat[5]++;
+		if (o > r_stat[6]) r_stat[6] = o;
+	}
+#endif
 
 	t_sprites = I_GetFRTCounter();
 	R_SpritePrep();
