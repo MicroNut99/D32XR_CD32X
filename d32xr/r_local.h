@@ -512,6 +512,7 @@ int R_DebugTexCache(r_texcache_t* c, char *buf, int nume, int elemsize);
 #define	AC_ADDSKY			512
 #define	AC_DRAWN			1024
 #define	AC_MIDTEXTURE		2048
+#define	AC_FARDARK			4096	/* CD32X: a far wall drawn as darkness (r_phase1.c) */
 
 typedef struct
 {

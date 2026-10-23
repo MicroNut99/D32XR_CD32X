@@ -34,7 +34,38 @@ typedef struct
    VINT       lastv2;
    angle_t    lastangle1;
    angle_t    lastangle2;
+#ifdef CD32X
+   boolean    curfar;
+#endif
 } rbspWork_t;
+
+#ifdef CD32X
+/* CD32X: the draw distance. Once a frame has R_FAR_AFTER walls (the BSP goes nearest first), a
+   two-sided line farther than R_FAR_DIST map units is drawn as a solid wall of darkness: nothing
+   behind it is drawn, so busy views (SIGIL's open areas) stay under MAXWALLCMDS instead of losing
+   their farthest walls at random and letting the floors and ceilings bleed. Views with fewer
+   walls are drawn as before. */
+#define R_FAR_AFTER 150
+#define R_FAR_DIST 1024
+static boolean R_FarLine(int x1, int y1, int x2, int y2)
+{
+   int vx = vd->viewx >> FRACBITS, vy = vd->viewy >> FRACBITS;
+   int dx, dy, d, lx, ly;
+   lx = x2 - x1; if (lx < 0) lx = -lx;
+   ly = y2 - y1; if (ly < 0) ly = -ly;
+   if (lx + ly > R_FAR_DIST)
+      return false;                   /* a long line may pass close by */
+   dx = x1 - vx; if (dx < 0) dx = -dx;
+   dy = y1 - vy; if (dy < 0) dy = -dy;
+   d = dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
+   if (d < R_FAR_DIST)
+      return false;
+   dx = x2 - vx; if (dx < 0) dx = -dx;
+   dy = y2 - vy; if (dy < 0) dy = -dy;
+   d = dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
+   return d >= R_FAR_DIST;
+}
+#endif
 
 static int R_ClipToViewEdges(angle_t angle1, angle_t angle2) ATTR_DATA_CACHE_ALIGN;
 static void R_AddLine(rbspWork_t *rbsp, seg_t* line) ATTR_DATA_CACHE_ALIGN;
@@ -224,6 +255,10 @@ static void R_WallEarlyPrep(rbspWork_t *rbsp, viswall_t* segl)
 
       if (!back_sector)
          back_sector = &emptysector;
+#ifdef CD32X
+      if (rbsp->curfar)
+         back_sector = &emptysector;      /* a wall of darkness: closed behind */
+#endif
 
       b_ceilingpic    = *(int8_t *)&back_sector->ceilingpic == -1 ? -1 : back_sector->ceilingpic;
       b_lightlevel    = back_sector->lightlevel;
@@ -266,12 +301,30 @@ static void R_WallEarlyPrep(rbspWork_t *rbsp, viswall_t* segl)
 
       segl->t_topheight = f_ceilingheight>>HEIGHTINTBITS; // top of texturemap
 
+#ifdef CD32X
+      if (!(li->sidenum[1] >= 0) || rbsp->curfar)
+#else
       if (!(li->sidenum[1] >= 0))
+#endif
       {
          // single-sided line
+#ifdef CD32X
+         int midtex = si->midtexture;
+         if (rbsp->curfar)
+         {
+            /* any texture: it is drawn at the darkest light (AC_FARDARK, r_phase6.c) */
+            midtex = si->midtexture > 0 ? si->midtexture : si->toptexture > 0 ? si->toptexture :
+               si->bottomtexture > 0 ? si->bottomtexture : 1;
+            actionbits |= AC_FARDARK;
+         }
+         if (midtex > 0)
+         {
+            segl->t_texturenum = texturetranslation[midtex];
+#else
          if (si->midtexture > 0)
          {
             segl->t_texturenum = texturetranslation[si->midtexture];
+#endif
 
             // handle unpegging (bottom of texture at bottom, or top of texture at top)
             if(liflags & ML_DONTPEGBOTTOM)
@@ -622,6 +675,15 @@ static void R_AddLine(rbspWork_t *rbsp, seg_t *line)
            return;
    }
 
+#ifdef CD32X
+   rbsp->curfar = false;
+   if (backsector && !solid && vd->lastwallcmd - vd->viswalls >= R_FAR_AFTER &&
+       R_FarLine(vertexes[nv1].x, vertexes[nv1].y, vertexes[nv2].x, vertexes[nv2].y))
+   {
+      solid = true;
+      rbsp->curfar = true;
+   }
+#endif
    rbsp->curline    = line;
    rbsp->curside    = sidedef;
    rbsp->curldef    = ldef;

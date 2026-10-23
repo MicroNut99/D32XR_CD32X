@@ -467,6 +467,13 @@ void R_SegCommands(void)
             lseg.lightmin = lseg.lightmax = vd->fixedcolormap;
             lseg.lightcoef = 0;
         }
+#ifdef CD32X
+        else if (segl->actionbits & AC_FARDARK)
+        {
+            lseg.lightmin = lseg.lightmax = 0;	/* darkness (r_phase1.c's draw distance) */
+            lseg.lightcoef = 0;
+        }
+#endif
         else
         {
             seglight = segl->seglightlevel & 0xff;
