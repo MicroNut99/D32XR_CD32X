@@ -16,7 +16,9 @@ The tracks, in the order tools/make_game.py numbers them (title, the 9 maps, int
   Track23     SIGIL II intermission = its D_INTER
 A song longer than --cap seconds fades out over its last --fade seconds there (the CD audio loops
 in a level, so it starts over). The songs of maps not on the disc (--skip: too big for the 32X's
-RAM) become 1 s of silence, so the numbering stays. 44.1 kHz 16-bit stereo WAV; ffmpeg decodes.
+RAM) become 1 s of silence, so the numbering stays. Every song is brought to --level dBFS RMS
+(default -21: the albums are mastered near 0 dBFS, far louder than the game's sounds, and the
+console's mixer clips) with peaks under -1 dBFS. 44.1 kHz 16-bit stereo WAV; ffmpeg decodes.
 """
 import argparse, os, re, struct, subprocess, sys, tempfile
 
@@ -24,24 +26,36 @@ SECTOR = 2352
 RATE = 44100
 
 
+LEVEL = -21.0                  # dBFS RMS of every song (the albums are mastered near 0 dBFS:
+                               # far louder than the game's sounds, and the console's mixer clips)
+PEAK = -1.0                    # dBFS: no sample above this
+
+
 def ffmpeg_wav(src, dst, cap, fade, seek=None, length=None, fmt=None):
-    """src -> 44.1 kHz 16-bit stereo WAV, at most cap seconds, faded out at the end when cut"""
-    probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0']
-                           + (['-f', fmt] if fmt else []) + [src], capture_output=True, text=True).stdout.strip()
-    dur = float(probe) if probe and length is None else (length or 0.0)
+    """src -> 44.1 kHz 16-bit stereo WAV, at most cap seconds (faded out at the end when cut),
+    at LEVEL dBFS RMS with peaks under PEAK dBFS (decoded in floating point, so the albums' own
+    overs are not clipped)"""
+    import numpy as np, wave
     cmd = ['ffmpeg', '-v', 'error', '-y']
     if fmt:
         cmd += ['-f', fmt, '-ar', str(RATE), '-ac', '2']
-    cmd += ['-i', src]
-    af = []
-    if dur > cap:
-        af.append('afade=t=out:st=%.3f:d=%.3f' % (cap - fade, fade))
-        cmd += ['-t', '%.3f' % cap]
-    if af:
-        cmd += ['-af', ','.join(af)]
-    cmd += ['-ar', str(RATE), '-ac', '2', '-c:a', 'pcm_s16le', dst]
-    subprocess.run(cmd, check=True)
-    return min(dur, cap)
+    cmd += ['-i', src, '-t', '%.3f' % cap, '-ar', str(RATE), '-ac', '2', '-f', 'f32le', '-']
+    x = np.frombuffer(subprocess.run(cmd, check=True, capture_output=True).stdout, '<f4').reshape(-1, 2).astype(np.float64)
+    n = len(x)
+    if n >= int(cap * RATE) - RATE // 10:           # cut: fade out over the last fade seconds
+        k = int(fade * RATE)
+        x[n - k:] *= np.linspace(1.0, 0.0, k)[:, None]
+    rms = float(np.sqrt(np.mean(x ** 2))) or 1e-9
+    gain = 10 ** (LEVEL / 20) / rms
+    peak = float(np.abs(x).max()) * gain
+    if peak > 10 ** (PEAK / 20):
+        gain *= 10 ** (PEAK / 20) / peak
+    y = np.clip(np.round(x * gain * 32767), -32768, 32767).astype('<i2')
+    w = wave.open(dst, 'wb')
+    w.setnchannels(2); w.setsampwidth(2); w.setframerate(RATE)
+    w.writeframes(y.tobytes())
+    w.close()
+    return n / RATE
 
 
 def silence(dst, seconds=1.0):
@@ -105,9 +119,11 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--cap', type=float, default=300.0)
     ap.add_argument('--fade', type=float, default=6.0)
+    ap.add_argument('--level', type=float, default=LEVEL, help='dBFS RMS of every song (default -21)')
     ap.add_argument('--skip', default='E5M6,E5M7,E6M5,E6M6,E6M7')
     ap.add_argument('--tracks', help='only these tracks, e.g. 2-5 (default all; the summary needs all)')
     a = ap.parse_args()
+    globals()['LEVEL'] = a.level
     skip = set(x.strip().upper() for x in a.skip.split(',') if x.strip())
     os.makedirs(a.out, exist_ok=True)
     songs = sorted(f for f in os.listdir(a.sigil) if f.lower().endswith('.flac'))
@@ -144,7 +160,7 @@ def main():
             finally:
                 os.unlink(tmp.name)
         total += sec
-        print('  Track%02d %5.1f s  %s' % (n + 2, sec, what))
+        print('  Track%02d %5.1f s  %s' % (n + 2, sec, what), flush=True)
     print('SIGIL CD audio: 22 tracks, %.1f min -> %s' % (total / 60, a.out))
 
 
