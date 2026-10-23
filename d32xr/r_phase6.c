@@ -470,7 +470,8 @@ void R_SegCommands(void)
 #ifdef CD32X
         else if (segl->actionbits & AC_FARDARK)
         {
-            lseg.lightmin = lseg.lightmax = 0;	/* darkness (r_phase1.c's draw distance) */
+            /* darkness (r_phase1.c's draw distance): the darkest light, black pixels below */
+            lseg.lightmin = lseg.lightmax = HWLIGHT(0);
             lseg.lightcoef = 0;
         }
 #endif
@@ -564,6 +565,22 @@ void R_SegCommands(void)
         {
             R_SetupDrawTexture(toptex, &textures[segl->t_texturenum],
                 segl->t_texturemid<<HEIGHTINTBITS, segl->t_topheight<<HEIGHTINTBITS, segl->t_bottomheight<<HEIGHTINTBITS);
+#ifdef CD32X
+            if (actionbits & AC_FARDARK)
+            {
+                /* every column one column of palette index 0 (black) */
+                static const inpixel_t r_black[128] = { 0 };
+                drawmip_t *mip = &toptex->mip[0];
+                toptex->maxmip = 0;
+                mip->data = (void *)r_black;
+                mip->pitch = 0;
+                mip->height = 128;
+                mip->drawcol = drawcol;
+                mip->colormaps = dc_colormaps;
+                mip->depth = 3;
+                mip->numdecals = 0;
+            }
+#endif
             lseg.first--;
         }
 
