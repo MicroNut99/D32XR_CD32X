@@ -254,6 +254,28 @@ static void splash_lines(void) {
     for (i = 0; i < 256; i++)
         fb[i] = (uint16_t)(0x100 + (i < SPL_LINES ? i : SPL_LINES - 1) * (SPL_W / 2));
 }
+#if CDL_D32XR_PAGE
+/* D32XR: only the gold part of the bar is drawn, over the picture - no white frame, no brown
+   empty part: nothing shows until the copy starts (FIRST TIME), then the gold bar grows */
+static int bar_on(int x, int y, int fill) {
+    return y >= BAR_Y0 + 2 && y < BAR_Y1 - 2 && x >= BAR_X0 + 2 && x < BAR_X1 - 2 && x - (BAR_X0 + 2) < fill;
+}
+static void splash_bar(uint32_t done, uint32_t total) {
+    volatile uint16_t *fb = SC_FRAMEBUFFER + 0x100;
+    uint32_t acc = (uint32_t)((BAR_X1 - 2) - (BAR_X0 + 2)) * done;
+    int fill = 0, x, y;
+    while (total && acc >= total) { acc -= total; fill++; }       /* = inner * done / total */
+    if (!fill) return;
+    for (y = BAR_Y0 + 2; y < BAR_Y1 - 2; y++)
+        for (x = (BAR_X0 + 2) & ~1; x < BAR_X0 + 2 + fill + 1 && x < BAR_X1; x += 2) {
+            volatile uint16_t *p = &fb[y * (SPL_W / 2) + (x >> 1)];
+            uint16_t v = *p;
+            if (bar_on(x, y, fill)) v = (uint16_t)((v & 0x00FF) | (254 << 8));
+            if (bar_on(x + 1, y, fill)) v = (uint16_t)((v & 0xFF00) | 254);
+            *p = v;
+        }
+}
+#else
 static uint8_t bar_c(int x, int y, int fill) {
     if (y < BAR_Y0 + 2 || y >= BAR_Y1 - 2 || x < BAR_X0 + 2 || x >= BAR_X1 - 2) return 255;
     return (x - (BAR_X0 + 2) < fill) ? 254 : 253;
@@ -267,6 +289,7 @@ static void splash_bar(uint32_t done, uint32_t total) {
         for (x = BAR_X0; x < BAR_X1; x += 2)
             fb[y * (SPL_W / 2) + (x >> 1)] = (uint16_t)((bar_c(x, y, fill) << 8) | bar_c(x + 1, y, fill));
 }
+#endif
 static void splash_show(void) {
     uint32_t len, c, chunks;
     int pass, i;
