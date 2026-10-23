@@ -7,6 +7,10 @@
 #include "marshw.h"
 #endif
 
+#ifdef CD32X
+static unsigned short r_open_out[R_OPEN_OUT][SCREENWIDTH+4] __attribute__((aligned(16)));
+#endif
+
 #ifdef R_STATS
 int r_stat[10], r_stat_frame[2];		/* TEST_STATS: see R_RenderPlayerView */
 #endif
@@ -893,6 +897,13 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	tempbuf = (unsigned short*)(((intptr_t)tempbuf + 3) & ~3);
 	tempbuf += 2; // padding
 	for (i = 0; i < MAXVISPLANES; i++) {
+#ifdef CD32X
+		if (i >= MAXVISPLANES - R_OPEN_OUT) {
+			/* in SDRAM, cache-through as the frame buffer (both SH2s use them), each with its pad */
+			vd->visplanes[i].open = (unsigned short *)((uintptr_t)&r_open_out[i - (MAXVISPLANES - R_OPEN_OUT)][2] | 0x20000000);
+			continue;
+		}
+#endif
 		vd->visplanes[i].open = tempbuf;
 		tempbuf += SCREENWIDTH+2;
 	}
