@@ -40,30 +40,34 @@ typedef struct
 } rbspWork_t;
 
 #ifdef CD32X
-/* CD32X: the draw distance. Once a frame has R_FAR_AFTER walls (the BSP goes nearest first), a
-   two-sided line farther than R_FAR_DIST map units is drawn as a solid wall of darkness: nothing
-   behind it is drawn, so busy views (SIGIL's open areas) stay under MAXWALLCMDS instead of losing
-   their farthest walls at random and letting the floors and ceilings bleed. Views with fewer
-   walls are drawn as before. */
+/* CD32X: the draw distance. The BSP goes nearest first; as a frame fills up with walls, two-sided
+   lines farther away are drawn as solid walls of darkness (nothing behind them is drawn), the
+   distance shrinking as the wall count nears MAXWALLCMDS: from R_FAR_AFTER walls, lines beyond
+   1024 map units; from 190, beyond 512; from 215, beyond 256. Busy views (SIGIL's open areas)
+   stay under the limit instead of dropping far walls at random and letting the floors and
+   ceilings bleed; views with fewer walls are drawn as before. */
 #define R_FAR_AFTER 150
-#define R_FAR_DIST 1024
-static boolean R_FarLine(int x1, int y1, int x2, int y2)
+static boolean __attribute__((noinline)) R_FarLine(int x1, int y1, int x2, int y2, int walls)
 {
-   int vx = vd->viewx >> FRACBITS, vy = vd->viewy >> FRACBITS;
-   int dx, dy, d, lx, ly;
-   lx = x2 - x1; if (lx < 0) lx = -lx;
-   ly = y2 - y1; if (ly < 0) ly = -ly;
-   if (lx + ly > R_FAR_DIST)
-      return false;                   /* a long line may pass close by */
-   dx = x1 - vx; if (dx < 0) dx = -dx;
-   dy = y1 - vy; if (dy < 0) dy = -dy;
-   d = dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
-   if (d < R_FAR_DIST)
+   int64_t px, py, dx, dy, dot, dd, cross, dist;
+   if (walls < R_FAR_AFTER)
       return false;
-   dx = x2 - vx; if (dx < 0) dx = -dx;
-   dy = y2 - vy; if (dy < 0) dy = -dy;
-   d = dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
-   return d >= R_FAR_DIST;
+   dist = walls < 190 ? 1024 : walls < 215 ? 512 : 256;
+   px = (vd->viewx >> FRACBITS) - x1;
+   py = (vd->viewy >> FRACBITS) - y1;
+   dx = x2 - x1;
+   dy = y2 - y1;
+   dot = px * dx + py * dy;
+   dd = dx * dx + dy * dy;
+   if (dot <= 0 || dd == 0)
+      return px * px + py * py >= dist * dist;          /* nearest to v1 */
+   if (dot >= dd)
+   {
+      px -= dx; py -= dy;
+      return px * px + py * py >= dist * dist;          /* nearest to v2 */
+   }
+   cross = px * dy - py * dx;                            /* beside the line */
+   return cross * cross >= dist * dist * dd;
 }
 #endif
 
@@ -677,8 +681,8 @@ static void R_AddLine(rbspWork_t *rbsp, seg_t *line)
 
 #ifdef CD32X
    rbsp->curfar = false;
-   if (backsector && !solid && vd->lastwallcmd - vd->viswalls >= R_FAR_AFTER &&
-       R_FarLine(vertexes[nv1].x, vertexes[nv1].y, vertexes[nv2].x, vertexes[nv2].y))
+   if (backsector && !solid &&
+       R_FarLine(vertexes[nv1].x, vertexes[nv1].y, vertexes[nv2].x, vertexes[nv2].y, vd->lastwallcmd - vd->viswalls))
    {
       solid = true;
       rbsp->curfar = true;
