@@ -27,11 +27,11 @@ sprite. Lumps with the same bytes are stored once.
 """
 import argparse, os, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from d32xr_wad import lzss_decode
+from d32xr_wad import lzss_decode, lzss_encode
 
 DOOM2_ONLY = ('CPOS SKEL FATT FATB FBXP MANF BSPI APLS APBX VILE FIRE BOS2 SSWV PAIN KEEN BBRN BOSF '
               'HDB1 HDB2 HDB3 HDB4 HDB5 HDB6 POB1 POB2 BRS1 TLMP TLP2 MEGA SGN2').split()
-ROM_LIMIT = 0x400000 - 0x2E7A4 - 4096       # the 4 MB less the program (D32XR.32x, IWAD at 0x2E7A4), a little spare
+ROM_LIMIT = 0x400000 - 220 * 1024        # the 4 MB less the program (D32XR.32x: about 219 KB, the IWAD follows it)
 MAPLUMPS = ['THINGS', 'LINEDEFS', 'SIDEDEFS', 'VERTEXES', 'SEGS', 'SSECTORS', 'NODES', 'SECTORS', 'REJECT', 'BLOCKMAP']
 BOXTOP, BOXBOTTOM, BOXLEFT, BOXRIGHT = range(4)
 
@@ -177,11 +177,108 @@ def rom_map(M, texnum):
     return out
 
 
+def rom_lines(ld):
+    """LINEDEFS -> line_t[n] (sidenum[2], v1, v2, flags, special as P_LoadLineDefs leaves them:
+    flags and special cut to 8 bits, JagDoom's key door specials for an untagged line) + tags[n]"""
+    lines, tags = bytearray(), bytearray()
+    for k in range(0, len(ld) - 13, 14):
+        v1, v2, flags, special, tag, s1, s2 = struct.unpack_from('<HHHHhHH', ld, k)
+        special &= 0xff
+        if not tag:
+            special = {99: 32, 100: 33, 105: 34, 106: 26, 107: 27, 108: 28}.get(special, special)
+        lines += struct.pack('>HHHHBB', s1, s2, v1, v2, flags & 0xff, special)
+        tags += struct.pack('>h', tag)
+    return bytes(lines + tags)
+
+
+TEMP_BUFFER = 0x10000 - 0x100          # I_TempBuffer: what a compressed lump read by W_GetLumpData may be
+
+
+def pack(name, data, temp):
+    """(name, stored bytes, size, compressed): the engine's LZSS when it saves room (a lump decoded
+    into the temp buffer only when it fits there)"""
+    if data and (not temp or len(data) <= TEMP_BUFFER):
+        z = lzss_encode(data)
+        if len(z) + 64 < len(data):
+            return (name, z, len(data), True)
+    return (name, data, len(data), False)
+
+
+def disc_names(paths):
+    """the texture and flat names the maps of these WADs (little-endian PWADs) use, and every name
+    in quotes in their DMAPINFO (border, end flats ...)"""
+    import re
+    tex, flats = set(), set()
+    nm = lambda b: b.split(b'\0')[0].decode('latin1').upper()
+    for path in paths:
+        for name, d in read_pwad(path):
+            if name == 'SIDEDEFS':
+                for k in range(0, len(d) - 29, 30):
+                    for o in (4, 12, 20):
+                        tex.add(nm(d[k + o:k + o + 8]))
+            elif name == 'SECTORS':
+                for k in range(0, len(d) - 25, 26):
+                    for o in (4, 12):
+                        flats.add(nm(d[k + o:k + o + 8]))
+            elif name == 'DMAPINFO':
+                for q in re.findall(r'"(\w{1,8})"', d.decode('latin1')):
+                    tex.add(q.upper())
+                    flats.add(q.upper())
+    return tex, flats
+
+
+def stub_unused(L, D, used_tex, used_flat):
+    """textures and flats nothing on the disc uses point to the smallest uncompressed one (kept:
+    the switch and animation partners of used ones, the patches of used decal textures, the ones
+    the engine names)"""
+    from make_game import ENGINE_SWITCHES, ANIM_TEX, ANIM_FLAT
+    names = [l['name'] for l in L]
+    ts, te, fs, fe = names.index('T_START'), names.index('T_END'), names.index('F_START'), names.index('F_END')
+    used_tex, used_flat = set(used_tex), set(used_flat) | {'ROCKS', 'F_STCOL2', 'F_SKY1'}
+    for a_, b_ in ENGINE_SWITCHES:
+        if a_ in used_tex or b_ in used_tex:
+            used_tex |= {a_, b_}
+    for rng, lo, hi, used in ((ANIM_TEX, ts, te, used_tex), (ANIM_FLAT, fs, fe, used_flat)):
+        blk = names[lo + 1:hi]
+        for a_, b_ in rng:
+            if a_ in blk and b_ in blk:
+                grp = set(blk[blk.index(a_):blk.index(b_) + 1])
+                if grp & used:
+                    used |= grp
+    # decal textures (no lump of their own) draw other textures
+    t = next(l for l in L if l['name'] == 'TEXTURE1')
+    data = D[t['pos']:t['end']]
+    data = lzss_decode(data) if t['raw'][0] & 0x80 else data
+    cnt = struct.unpack('<i', data[:4])[0]
+    defs = []
+    for off in struct.unpack('<%di' % cnt, data[4:4 + 4 * cnt]):
+        tn = data[off:off + 8].split(b'\0')[0].decode('latin1').upper()
+        pc = struct.unpack_from('<h', data, off + 20)[0]
+        defs.append((tn, [struct.unpack_from('<h', data, off + 22 + 10 * k + 4)[0] for k in range(max(0, pc))]))
+    for tn, patches in defs:
+        if tn in used_tex:
+            used_tex |= {defs[p][0] for p in patches if 0 <= p < cnt}
+    freed = 0
+    for lo, hi, used in ((ts, te, used_tex), (fs, fe, used_flat)):
+        cand = [i for i in range(lo + 1, hi) if L[i]['size'] and not L[i]['raw'][0] & 0x80 and L[i]['name'] in used]
+        donor = min(cand, key=lambda i: L[i]['size'])
+        for i in range(lo + 1, hi):
+            if L[i]['size'] and L[i]['name'] not in used:
+                freed += L[i]['end'] - L[i]['pos']
+                for k in ('pos', 'size', 'end', 'data'):
+                    L[i][k] = L[donor].get(k)
+                L[i]['raw'] = bytes([L[i]['raw'][0] & 0x7f]) + L[i]['raw'][1:]
+    return freed
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--iwad', required=True)
     ap.add_argument('--maps', nargs='+', required=True)
     ap.add_argument('--stub', default=','.join(DOOM2_ONLY), help='sprite names (4 letters) to point to one small sprite')
+    ap.add_argument('--disc', nargs='*', default=[], help='the WADs on the disc: textures and flats none of them '
+                    'nor the ROM maps use are freed (none given: all kept)')
+    ap.add_argument('--no-reject', action='store_true', help='the ROM maps without their reject tables (one zero table)')
     ap.add_argument('--limit', type=int, default=ROM_LIMIT)
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
@@ -206,41 +303,58 @@ def main():
                     L[x][k] = L[y].get(k)
                 L[x]['raw'] = bytes([(L[x]['raw'][0] & 0x7f) | (L[y]['raw'][0] & 0x80)]) + L[x]['raw'][1:]
     stubbed = len(set(L[h]['name'][:4] for h, d in pairs if L[h]['name'][:4] in stub))
+    if a.disc:
+        t, f = disc_names(a.disc + a.maps)
+        print('  unused textures and flats: %d KB freed' % (stub_unused(L, D, t, f) // 1024))
 
     # the maps
     texnum = texture_numbers(L, D)
     have = set(l['name'] for l in L)
-    added = []
+    maps = []                                     # [(name, {lump: bytes}, [extra (name, bytes)])]
     for path in a.maps:
         P = read_pwad(path)
         i = 0
         while i < len(P):
-            name, data = P[i]
+            name = P[i][0]
             if i + 10 < len(P) and [n for n, _ in P[i + 1:i + 11]] == MAPLUMPS:
                 if name in have:
                     sys.exit('%s is in the IWAD already' % name)
                 M = {n: d for n, d in P[i + 1:i + 11]}
                 R = rom_map(M, texnum)
-                first = len(added)
-                added.append((name, b''))
-                for n in MAPLUMPS:
-                    added.append((n, R.get(n, M[n])))
+                R['LINEDEFS'] = rom_lines(M['LINEDEFS'])
                 i += 11
+                extra = []
                 while i < len(P) and not (i + 10 < len(P) and [n for n, _ in P[i + 1:i + 11]] == MAPLUMPS):
-                    added.append(P[i])
+                    extra.append(P[i])
                     i += 1
-                mb = sum(len(d) for _, d in added[first:first + 11])
-                xb = sum(len(d) for _, d in added[first + 11:])
-                print('  %s: map %d KB + textures, flats, sky %d KB' % (name, mb // 1024, xb // 1024))
+                maps.append((name, dict(M, **R), extra))
                 continue
             i += 1
-    nmaps = sum(1 for n, d in added if n.startswith('E') and len(n) == 4 and not d)
-    added.append(('ROMEND', b''))                 # ends the last map's extra lumps
+    if a.no_reject and maps:
+        zero = bytes(max(len(m[1]['REJECT']) for m in maps))
+        for m in maps:
+            m[1]['REJECT'] = zero                 # no sight rejection; one table for all
+    added = []                                    # (name, stored bytes, size, compressed)
+    for name, M, extra in maps:
+        lumps = [(name, b'', 0, False)]
+        for n in MAPLUMPS:
+            if n in ('THINGS', 'SIDEDEFS'):
+                lumps.append(pack(n, M[n], False))          # W_ReadLump into its own buffer
+            elif n in ('LINEDEFS', 'SECTORS', 'SSECTORS'):
+                lumps.append(pack(n, M[n], True))           # W_GetLumpData: the temp buffer
+            else:
+                lumps.append((n, M[n], len(M[n]), False))   # used in place
+        mb = sum(len(x[1]) for x in lumps)
+        xb = sum(len(d) for _, d in extra)
+        print('  %s: map %d KB + textures, flats, sky %d KB' % (name, mb // 1024, xb // 1024))
+        added += lumps + [(n, d, len(d), False) for n, d in extra]
+    nmaps = len(maps)
+    added.append(('ROMEND', b'', 0, False))      # ends the last map's extra lumps
     # the maps go FIRST in the directory: the engine looks names up from the end backwards
     # (W_CheckWadForName), so the IWAD's own F_START, T_START / T_END, SKY3 ... stay the ones it finds,
     # not a map's (its extra lumps use the same names); a map reads its lumps forwards up to ROMEND
-    L = [{'name': n, 'raw': n.encode('latin1')[:8].ljust(8, b'\0'), 'size': len(d), 'data': d, 'pos': None}
-         for n, d in added] + L
+    raw = lambda n, c: bytes([n.encode('latin1')[0] | (0x80 if c else 0)]) + n.encode('latin1')[1:8].ljust(7, b'\0')
+    L = [{'name': n, 'raw': raw(n, c), 'size': sz, 'data': d, 'pos': None} for n, d, sz, c in added] + L
 
     # write: header, directory, then the IWAD's data in blocks of lumps that touch or overlap (kept
     # as they are, at the same position within 16 bytes), then the new lumps (16-byte aligned, the
@@ -282,7 +396,7 @@ def main():
     freed = len(D) - sum(e - p for p, e in blocks) - 16 * (n - len(read_iwad(a.iwad)[1]))
     open(a.out, 'wb').write(out)
     print('ROM IWAD: %s, %d bytes (%d free in the 4 MB ROM): %d maps added (%d KB), %d sprites stubbed (%d KB freed)'
-          % (a.out, len(out), a.limit - len(out), nmaps, sum(len(d) for _, d in added) // 1024, stubbed, freed // 1024))
+          % (a.out, len(out), a.limit - len(out), nmaps, sum(len(x[1]) for x in added) // 1024, stubbed, freed // 1024))
     if len(out) > a.limit:
         sys.exit('*** too big for the ROM by %d bytes' % (len(out) - a.limit))
 

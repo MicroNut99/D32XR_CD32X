@@ -54,7 +54,8 @@ VINT 		segspage = -1;
    keeps its vertexes, segs, nodes, reject and blockmap there in the engine's own big-endian form
    (segs in seg_t sorted as P_SortSegs does, nodes in node_t with the encoded boxes, the reject
    matrix packed as P_LoadRejectMatrix does), used in place: no RAM for them. Its sidedefs are
-   side_t (copied into RAM: switches change them). Its textures, flats
+   side_t and its linedefs line_t + tags, copied into RAM (the game changes them); those, the
+   things, sectors and subsectors may be compressed (the engine's LZSS). Its textures, flats
    and sky (the lumps after BLOCKMAP) are used in place too. Maps read from the CD are unchanged. */
 static boolean P_RomMap(int lump)
 {
@@ -579,6 +580,34 @@ void P_LoadLineDefs (int lump)
 	maplinedef_t	*mld;
 	line_t			*ld;
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		/* a ROM map's linedefs: line_t[numlines] as the loader below leaves them, then the
+		   lines' tags (int16_t[numlines]); maybe compressed (decoded into the temp buffer) */
+		int16_t *tags;
+
+		numlines = W_LumpLength (lump) / (sizeof(line_t) + sizeof(int16_t));
+		lines = Z_Malloc (numlines*sizeof(line_t)+16,PU_LEVEL);
+		lines = (void*)(((uintptr_t)lines + 15) & ~15); // aline on cacheline boundary
+		data = W_GetLumpData(lump);
+		D_memcpy (lines, data, numlines*sizeof(line_t));
+		tags = (int16_t *)(data + numlines*sizeof(line_t));
+		numlinetags = 0;
+		for (i = 0; i < numlines; i++)
+			if (tags[i])
+				numlinetags++;
+		if (!numlinetags)
+			return;
+		numlinetags = (numlinetags + LINETAGS_HASH_SIZE - 1) & ~(LINETAGS_HASH_SIZE - 1);
+		linetags = Z_Malloc(sizeof(*linetags)*numlinetags*2, PU_LEVEL);
+		D_memset(linetags, -1, sizeof(*linetags)*numlinetags*2);
+		for (i = 0; i < numlines; i++)
+			if (tags[i])
+				P_SetLineTag(i, tags[i]);
+		return;
+	}
+#endif
 	numlines = W_LumpLength (lump) / sizeof(maplinedef_t);
 	lines = Z_Malloc (numlines*sizeof(line_t)+16,PU_LEVEL);
 	lines = (void*)(((uintptr_t)lines + 15) & ~15); // aline on cacheline boundary
@@ -681,7 +710,7 @@ void P_LoadSideDefs (int lump)
 		numsides = W_LumpLength (lump) / sizeof(side_t);
 		sides = Z_Malloc (numsides*sizeof(side_t)+16,PU_LEVEL);
 		sides = (void*)(((uintptr_t)sides + 15) & ~15); // aline on cacheline boundary
-		D_memcpy (sides, W_POINTLUMPNUM(lump), numsides*sizeof(side_t));
+		W_ReadLump (lump, sides);		/* maybe compressed */
 		return;
 	}
 #endif

@@ -70,6 +70,7 @@ if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   tail -1 "$HERE/build/plutonia_log.txt"
 fi
 # SIGIL / SIGIL II (README "SIGIL"): episodes 5 / 6 on top of your doom.wad, music = the disc's CD audio
+rm -f "$HERE"/build/rom_sigil*.wad
 for G in sigil sigil2; do
   if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil; OUTW=SIGIL.WAD; CDT=1
   else                    PW=sigil2.wad; PIC=Sigil2; OUTW=SIGIL_II.WAD; CDT=12; fi
@@ -102,8 +103,9 @@ fi
 IWAD="$DATA/doom32xf.wad"
 if [ -n "$ROMMAPS" ]; then
   echo "==> the ROM maps ($ROMMAPS) into the game's IWAD"
+  # NOREJECT=1: the ROM maps without reject tables (more room, more sight checks)
   python3 "$HERE/tools/make_rommaps.py" --iwad "$DATA/doom32xf.wad" --maps $(ls "$HERE"/build/rom_sigil*.wad) \
-          --out "$HERE/build/rom_iwad.wad"
+          --disc $(ls "$DISC"/*.WAD) ${NOREJECT:+--no-reject} --out "$HERE/build/rom_iwad.wad"
   IWAD="$HERE/build/rom_iwad.wad"
 fi
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
