@@ -626,7 +626,13 @@ void* I_RemapPtr(void *ptr)
 #define ZONE_SIZE BASE_ZONE_SIZE
 #endif
 
+#ifdef CD32X
+/* the renderer's openings moved out of the frame buffer into SDRAM (r_main.c): the zone gives
+   up the same room */
+static char zone[ZONE_SIZE - SCREENWIDTH*18*2] __attribute__((aligned(16)));
+#else
 static char zone[ZONE_SIZE] __attribute__((aligned(16)));
+#endif
 byte *I_ZoneBase (int *size)
 {
 	*size = sizeof(zone);

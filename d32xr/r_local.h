@@ -585,7 +585,13 @@ typedef struct
 	uint16_t 	*clipbounds;
 } viswall_t;
 
+#ifdef CD32X
+/* CD32X: SIGIL's scenes need 200-280 walls a frame; past the limit the farthest walls are
+   dropped and the floors and ceilings bleed (measured in ares, build_game.sh TEST_STATS) */
+#define	MAXWALLCMDS		280
+#else
 #define	MAXWALLCMDS		165
+#endif
 
 /* A vissprite_t is a thing that will be drawn during a refresh */
 typedef struct vissprite_s
