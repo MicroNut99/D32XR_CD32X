@@ -30,6 +30,11 @@ MUSIC="${MUSIC:-idkfa}"
 CDONLY=""; [ "$MUSIC" = sigil ] && CDONLY=1
 # the title fire (README: "The title fire"): on unless FIRE=0
 FIRE="${FIRE-1}"; [ "$FIRE" = 0 ] && FIRE=""; export FIRE
+# ROMMAPS="E5M9 E6M8 ..." (the SIGIL edition, README "SIGIL in the ROM"): those SIGIL / SIGIL II maps,
+# too big for the 32X's RAM from the CD, go into the game's ROM image (their read-only parts used in
+# place: tools/make_rommaps.py, d32xr/p_setup.c). The room comes from DOOM II's monster sprites, so
+# the games that need them (DOOM II, TNT MINI, PLUTONIA, RESURRECTION) and MAPDEV are left off.
+ROMMAPS="${ROMMAPS:-}"
 DATA="$HERE/data"
 ROMS="$HERE/cd32x/subcpu/ROMS"
 mkdir -p "$ROMS" "$HERE/build"
@@ -53,8 +58,9 @@ DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fu
 # CUT="" keeps them all.
 if [ "$MUSIC" = sigil ]; then CUT="${CUT-}"           # the SIGIL disc has room for everything
 else CUT="${CUT-MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
+[ -n "$ROMMAPS" ] && CUT="$CUT MAPDEV.WAD DOOM_II.WAD TNT_MINI.WAD RESURRECTION.WAD VGM_DOOM_II VGM_PLUTONIA VGM_TNT"
 for f in $CUT; do rm -rf "$DISC/$f"; done
-if [ -f "$DATA/plutonia.wad" ]; then
+if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
   PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
   python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
@@ -73,9 +79,10 @@ for G in sigil sigil2; do
   # background: sigil-wallpaper_1.jpg (made at 320 x 224: used as it is), else sigil-wallpaper.jpg
   PIC="$(ls "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp" 2>/dev/null | head -1)"
   WALL="$(ls "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
-  echo "==> $OUTW (from data/sigil/$PW)"
+  echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
+  ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
-          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $SMUS \
+          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $SMUS $ROMOPT \
           --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
     || { tail -20 "$HERE/build/${G}_log.txt"; echo "*** $OUTW failed"; exit 1; }
   tail -1 "$HERE/build/${G}_log.txt"
@@ -92,11 +99,18 @@ if [ "$MUSIC" != sigil ] && { [ -f "$DISC/SIGIL.WAD" ] || [ -f "$DISC/SIGIL_II.W
     echo "    no data/sigil_cdda/Track02-23.wav: SIGIL plays no music (tools/make_sigil_cdda.sh makes them)"
   fi
 fi
+IWAD="$DATA/doom32xf.wad"
+if [ -n "$ROMMAPS" ]; then
+  echo "==> the ROM maps ($ROMMAPS) into the game's IWAD"
+  python3 "$HERE/tools/make_rommaps.py" --iwad "$DATA/doom32xf.wad" --maps $(ls "$HERE"/build/rom_sigil*.wad) \
+          --out "$HERE/build/rom_iwad.wad"
+  IWAD="$HERE/build/rom_iwad.wad"
+fi
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
-CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
+IWAD="$IWAD" CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"

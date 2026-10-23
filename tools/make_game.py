@@ -328,6 +328,7 @@ class Converter:
         self.pack = Pack(args.hires) if args.hires else None
         self.fusion = args.fusion
         self.budget = args.budget * 1024
+        self.rom_maps, self.rom_lumps = set(), []
         self.report = []
         self.look_cache = {}
         self.budgets = None
@@ -716,6 +717,8 @@ class Converter:
     def map_budget(self, lumps):
         """RAM for the map's extras: measured (--budgets: free zone RAM after loading the map without
         extras, minus the margin), else K - the map's own footprint"""
+        if self.cur_map in self.rom_maps:
+            return self.args.rom_budget * 1024          # a ROM map's extras stay in the ROM: no RAM
         if self.budgets is not None:
             return self.budgets.get(self.cur_map, 0)
         # measured on Plutonia's 32 maps in ares: texture cache + level data = 177.4 KB (+-3 KB
@@ -820,6 +823,8 @@ class Converter:
         else:
             lumps = self.build_sigil()
         write_pwad(out, lumps)
+        if self.args.rom_maps:
+            write_pwad(self.args.rom_maps, self.rom_lumps)
         return lumps
 
     def doom2_cd_tracks(self):
@@ -856,9 +861,13 @@ class Converter:
         for m, sky in maps:
             ml = self.map_lumps(m)
             self.cur_map = m
-            if self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416:
+            if m not in self.rom_maps and self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416:
                 sky = None                        # no room even for the 4-bit sky: the base game's sky
-            out += self.convert_map(m, ml, sky)
+            lumps = self.convert_map(m, ml, sky)
+            if m in self.rom_maps:
+                self.rom_lumps += lumps           # --rom-maps: into the ROM (tools/make_rommaps.py)
+            else:
+                out += lumps
         return out
 
     # ---- The Plutonia Experiment -----------------------------------------------------------------
@@ -964,14 +973,21 @@ class Converter:
         self.map_names = {m: umap.get(m, {}).get('levelname', m) for m in maps}
         # maps the 32X's RAM cannot hold (the level alone, before any texture): left out, the
         # episode's "next" chain goes on to the next one that fits
+        # --rom-maps: the maps named by --rom go into the game's ROM instead (their read-only parts
+        # used in place, tools/make_rommaps.py) and stay in the episode
         fits, sizes = [], {}
+        want_rom = set(x.upper() for x in (self.args.rom or '').split(',') if x) if self.args.rom_maps else set()
         for m in maps:
             sizes[m] = self.level_size(self.map_lumps(m))
-            if sizes[m] <= self.args.maxlevel:
+            if m in want_rom:
+                self.rom_maps.add(m)
+                fits.append(m)
+            elif sizes[m] <= self.args.maxlevel:
                 fits.append(m)
         for m in maps:
             self.report.append('%s %-28s level %4.0f KB %s' % (m, '"%s"' % self.map_names[m], sizes[m],
-                               'ok' if m in fits else 'TOO BIG for the 32X (limit %d KB): left out' % self.args.maxlevel))
+                               'ROM map' if m in self.rom_maps else 'ok' if m in fits else
+                               'TOO BIG for the 32X (limit %d KB): left out' % self.args.maxlevel))
         if not fits:
             die('no %s map fits the 32X' % title)
         def nxt(m, key='next'):
@@ -1084,6 +1100,9 @@ def main():
     ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',
                     help='SIGIL: streamed PCM files on the data track (spcm) or the disc\'s CD audio tracks (cd)')
     ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL --music cd: the cdTrack of its title song (11 tracks: title, E?M1-9, intermission)')
+    ap.add_argument('--rom-maps', help='SIGIL: a PWAD for the maps named by --rom (they go into the ROM: tools/make_rommaps.py)')
+    ap.add_argument('--rom', help='SIGIL with --rom-maps: the ROM maps, e.g. E5M4,E5M9')
+    ap.add_argument('--rom-budget', type=int, default=160, help='KB of ROM for a ROM map\'s textures, flats and sky')
     ap.add_argument('--maxlevel', type=int, default=175, help='KB of RAM a level may take (bigger maps are left out)')
     ap.add_argument('--base', required=True)
     ap.add_argument('--fusion', required=True)
