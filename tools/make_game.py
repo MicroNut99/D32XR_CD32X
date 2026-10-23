@@ -724,9 +724,7 @@ class Converter:
         # measured on Plutonia's 32 maps in ares: texture cache + level data = 177.4 KB (+-3 KB
         # against LEVEL_MODEL), less the 24 KB the cache needs for the base game's own textures
         # and a 4 KB margin
-        # (138.2 = 149.4 measured, less the 11.25 KB the renderer's openings took from the zone
-        # for MAXWALLCMDS 280, r_main.c)
-        return int(max(0, 138.2 - self.level_size(lumps) - 3) * 1024)
+        return int(max(0, 149.4 - self.level_size(lumps) - 3) * 1024)
 
     @staticmethod
     def footprint(lumps):

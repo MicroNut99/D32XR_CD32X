@@ -7,10 +7,6 @@
 #include "marshw.h"
 #endif
 
-#ifdef CD32X
-static unsigned short r_segclip_[MAXOPENINGS] __attribute__((aligned(16)));
-#endif
-
 #ifdef R_STATS
 int r_stat[10], r_stat_frame[2];		/* TEST_STATS: see R_RenderPlayerView */
 #endif
@@ -901,14 +897,8 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 		tempbuf += SCREENWIDTH+2;
 	}
 
-#ifdef CD32X
-	/* the openings live in SDRAM (cache-through, as the frame buffer), leaving the frame
-	   buffer's spare lines to the bigger wall list (MAXWALLCMDS) */
-	vd->segclip = (unsigned short *)((uintptr_t)r_segclip_ | 0x20000000);
-#else
 	vd->segclip = tempbuf;
 	tempbuf += MAXOPENINGS;
-#endif
 
 	tempbuf = (unsigned short*)(((intptr_t)tempbuf + 3) & ~3);
 	vd->viswalls = (void*)tempbuf;

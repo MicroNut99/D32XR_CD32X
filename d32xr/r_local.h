@@ -587,8 +587,11 @@ typedef struct
 
 #ifdef CD32X
 /* CD32X: SIGIL's scenes need 200-280 walls a frame; past the limit the farthest walls are
-   dropped and the floors and ceilings bleed (measured in ares, build_game.sh TEST_STATS) */
-#define	MAXWALLCMDS		280
+   dropped and the floors and ceilings bleed (measured in ares, build_game.sh TEST_STATS). The
+   room comes from 4 visplanes (MAXVISPLANES 28: SIGIL used up to 30) and the frame buffer's
+   spare lines; the 32X's RAM has nothing left to give (11 KB less and SIGIL II's maps no longer
+   load) */
+#define	MAXWALLCMDS		216
 #else
 #define	MAXWALLCMDS		165
 #endif
@@ -626,7 +629,11 @@ typedef struct visplane_s
 	unsigned short		*open/*[SCREENWIDTH+2]*/;		/* top<<8 | bottom */ /* leave pads for [minx-1]/[maxx+1] */
 } visplane_t;
 
+#ifdef CD32X
+#define	MAXVISPLANES	28
+#else
 #define	MAXVISPLANES	32
+#endif
 
 #define NUM_VISPLANES_BUCKETS 32
 
