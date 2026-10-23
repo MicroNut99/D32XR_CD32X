@@ -59,6 +59,9 @@ DISC="$HERE/build/disc_files"; rm -rf "$DISC"; mkdir -p "$DISC"; cp -r "$DATA/fu
 if [ "$MUSIC" = sigil ]; then CUT="${CUT-}"           # the SIGIL disc has room for everything
 else CUT="${CUT-MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
 [ -n "$ROMMAPS" ] && CUT="$CUT MAPDEV.WAD DOOM_II.WAD TNT_MINI.WAD RESURRECTION.WAD VGM_DOOM_II VGM_PLUTONIA VGM_TNT"
+# SIGILONLY=1 (with ROMMAPS): DOOM.WAD left off too - only SIGIL and SIGIL II on the disc, so the
+# textures and flats only DOOM's maps use make room for one more ROM map
+[ -n "$ROMMAPS" ] && [ -n "${SIGILONLY:-}" ] && CUT="$CUT DOOM.WAD VGM_DOOM"
 for f in $CUT; do rm -rf "$DISC/$f"; done
 if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
@@ -126,7 +129,8 @@ cd "$HERE/cd32x/subcpu" && make clean > /dev/null \
   && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DISC"
 ISO="$HERE/cd32x/subcpu/CDROMPlayer.iso"
 grep -a -q "SH2-D32XR-CD-M1-LOADER" "$ISO" || { echo "*** the disc does not hold the D32XR loader - stopping"; exit 1; }
-for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW SOUNDS.WAD DOOM.WAD VIDEO/IDLOGO.ROQ; do
+for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW SOUNDS.WAD ${SIGILONLY:-DOOM.WAD} VIDEO/IDLOGO.ROQ; do
+  [ "$f" = 1 ] && continue
   [ -f "$HERE/cd32x/subcpu/cd/$f" ] || { echo "*** $f is not on the disc - stopping"; exit 1; }
 done
 cmp -s "$HERE/cd32x/subcpu/cd/D32XR.32X" "$ROMS/D32XR.32X" || { echo "*** the disc has an old game - stopping"; exit 1; }
