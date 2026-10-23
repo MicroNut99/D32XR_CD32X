@@ -15,7 +15,7 @@ void ReadEEProm (void);
 ================ 
 */ 
  
-#ifdef CD32X
+#if defined(CD32X) && defined(R_STATS_STACK)
 /* CD32X: the primary SH2's stack runs down from 0x0603F400 towards the end of the bss. The
    space between is filled with a marker at power-on, so an emulator RAM dump shows how deep
    the stack ever went (the lowest word that no longer holds the marker). */
@@ -32,7 +32,7 @@ static void __attribute__((noinline)) Mars_MarkStack(void)
 
 int main(void)
 {
-#ifdef CD32X
+#if defined(CD32X) && defined(R_STATS_STACK)
 	Mars_MarkStack();
 #endif
 	Mars_Init();

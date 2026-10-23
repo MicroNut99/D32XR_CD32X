@@ -57,10 +57,16 @@ VINT 		segspage = -1;
    side_t and its linedefs line_t + tags, copied into RAM (the game changes them); those, the
    things, sectors and subsectors may be compressed (the engine's LZSS). Its textures, flats
    and sky (the lumps after BLOCKMAP) are used in place too. Maps read from the CD are unchanged. */
+#ifdef CD32X_ROMMAPS
 static boolean P_RomMap(int lump)
 {
 	return W_IsIWad(lump);
 }
+#else
+/* only the ROM map disc needs it (build_game.sh with IWAD=): the DOOM disc's program stays
+   small enough for the 4 MB beside Fusion's IWAD */
+#define P_RomMap(lump) false
+#endif
 #endif
 
 mapthing_t	*deathmatchstarts, *deathmatch_p;

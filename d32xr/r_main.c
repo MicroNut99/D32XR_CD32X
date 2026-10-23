@@ -938,7 +938,7 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	tempbuf += sizeof(uint8_t) * COLUMN_CACHE_SIZE * 2 / sizeof(*tempbuf);
 
 	//I_Error("%d", ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 - tempbuf) * 2);
-#ifdef CD32X
+#ifdef R_STATS
 	if ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 < tempbuf)
 		I_Error("R_Setup: work area short by %d", (tempbuf - ((uint16_t *)I_FrameBuffer() + 64*1024-0x100)) * 2);
 #endif
@@ -1181,10 +1181,14 @@ void R_RenderPlayerView(int displayplayer)
 
 	Mars_ClearCacheLine(&vd->lastsegclip);
 
+#ifndef CD32X
+	/* (CD32X: neither can happen - R_WallLatePrep drops a wall that would overrun the openings,
+	   R_Subsector stops at MAXVISSSEC - and the program needs the room) */
 	if (vd->lastsegclip - vd->segclip > MAXOPENINGS)
 		I_Error("lastsegclip > MAXOPENINGS: %d", vd->lastsegclip - vd->segclip);
 	if (vd->lastvissector - vd->vissectors > MAXVISSSEC)
 		I_Error("lastvissector > MAXVISSSEC: %d", vd->lastvissector - vd->vissectors);
+#endif
 
 	t_planes = I_GetFRTCounter();
 	R_DrawPlanes();

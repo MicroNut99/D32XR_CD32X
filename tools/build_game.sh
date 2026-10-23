@@ -18,6 +18,11 @@ B="$HERE/build/d32xr"
 rm -rf "$B"; mkdir -p "$HERE/build"; cp -r "$HERE/d32xr" "$B"
 # IWAD=<file>: another IWAD (build.sh ROMMAPS: with the ROM maps, tools/make_rommaps.py)
 cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
+# the ROM maps' engine side (p_setup.c) only on that disc (build.sh ROMMAPS=...)
+[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_ROMMAPS 1' "$B/p_setup.c"
+# and the draw distance (far lines as darkness in busy views, r_phase1.c / r_phase6.c): the SIGIL
+# disc's maps need it; on the DOOM disc the program has no room for it beside Fusion's IWAD
+[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
 [ -n "${PRELOAD_H:-}" ] && cp "$PRELOAD_H" "$B/src-md/cd32x_preload.h"
 # CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the
@@ -26,7 +31,7 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # TEST_GOD=1: emulator testing only - the player takes no damage
 [ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->player) return;\n&|' "$B/p_inter.c"
 # TEST_STATS=1: emulator testing only - r_main.c keeps the renderer's peak use against its limits (r_stat)
-[ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c"
+[ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c" && sed -i '1i #define R_STATS_STACK 1' "$B/marsonly.c"
 # TEST_WALLS=n TEST_PLANES=n: emulator testing only - other renderer limits (MAXWALLCMDS 165, MAXVISPLANES 32)
 [ -n "${TEST_WALLS:-}" ] && sed -i "s/^#define\tMAXWALLCMDS\t\t165/#define\tMAXWALLCMDS\t\t$TEST_WALLS/" "$B/r_local.h"
 [ -n "${TEST_PLANES:-}" ] && sed -i "s/^#define\tMAXVISPLANES\t32/#define\tMAXVISPLANES\t$TEST_PLANES/" "$B/r_local.h"

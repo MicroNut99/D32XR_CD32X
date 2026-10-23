@@ -76,6 +76,9 @@ fi
 # SIGIL / SIGIL II (README "SIGIL"): episodes 5 / 6 on top of your doom.wad, music = the disc's CD audio
 rm -f "$HERE"/build/rom_sigil*.wad
 for G in sigil sigil2; do
+  # SIGIL and SIGIL II are on their own disc (MUSIC=sigil, with their own CD audio); the DOOM
+  # disc leaves them off (WITHSIGIL=1 puts them back, with the streamed SPCM music)
+  [ "$MUSIC" = sigil ] || [ -n "${WITHSIGIL:-}" ] || continue
   if [ $G = sigil ]; then PW=sigil.wad; PIC=sigil; OUTW=SIGIL.WAD; CDT=1
   else                    PW=sigil2.wad; PIC=Sigil2; OUTW=SIGIL_II.WAD; CDT=12; fi
   SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
@@ -116,7 +119,7 @@ echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
-IWAD="$IWAD" CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
+ROMMAPS="$ROMMAPS" IWAD="$IWAD" CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
