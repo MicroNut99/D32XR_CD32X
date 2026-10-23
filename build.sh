@@ -14,6 +14,7 @@
 #   - optional: plutonia.wad (+ hires/*.pk3), doom.wad + sigil/sigil.wad, sigil/sigil2.wad (+ pictures):
 #     PLUTONIA.WAD, SIGIL.WAD, SIGIL_II.WAD (tools/make_game.py)
 #   - optional: sigil_cdda/Track02..23.wav (SIGIL's music -> streamed PCM files, tools/make_sigil_cdda.sh)
+#   - optional: sigil_albums/Track02..23.wav (MUSIC=sigil: the albums as CD audio, tools/make_sigil_albums.py)
 #   - optional: music/Track02.wav ... (the CD audio tracks: DOOM / DOOM II / Resurrection / Plutonia's
 #     soundtrack, Fusion's numbering); else the tracks of "DOOM CD32X FUSION V3 with IDKFA
 #     Soundtrack/*.cue" in the project folder (IDKFA=<cue>); none: one silent track
@@ -141,9 +142,13 @@ MUS="$HERE/build/music"; rm -rf "$MUS"; mkdir -p "$MUS"
 # CD), numbered as Fusion's WADs number them (README "CD audio"): data/music/Track02.wav ...
 IDKFA="${IDKFA:-$HERE/DOOM CD32X FUSION V3 with IDKFA Soundtrack/DOOM CD32X FUSION V3 with IDKFA Soundtrack.cue}"
 if [ "$MUSIC" = sigil ]; then
-  # the SIGIL CD audio disc: SIGIL's songs on tracks 2-12, SIGIL II's on 13-23 (tools/make_sigil_cdda.sh)
-  ls "$DATA"/sigil_cdda/Track*.wav > /dev/null 2>&1 || { echo "*** MUSIC=sigil needs data/sigil_cdda/Track02-23.wav"; exit 1; }
-  cp "$DATA"/sigil_cdda/Track*.wav "$MUS"/
+  # the SIGIL CD audio disc: SIGIL's songs on tracks 2-12, SIGIL II's on 13-23 - the albums
+  # (Buckethead, THORR: data/sigil_albums, tools/make_sigil_albums.py) if made, else the OPL
+  # renders (data/sigil_cdda, tools/make_sigil_cdda.sh); SIGILCDDA=<folder> for another
+  SCD="${SIGILCDDA:-$DATA/sigil_albums}"; [ -f "$SCD/Track23.wav" ] || SCD="$DATA/sigil_cdda"
+  ls "$SCD"/Track*.wav > /dev/null 2>&1 || { echo "*** MUSIC=sigil needs data/sigil_albums or data/sigil_cdda Track02-23.wav"; exit 1; }
+  cp "$SCD"/Track*.wav "$MUS"/
+  echo "    SIGIL's CD audio from ${SCD#$HERE/}"
   echo "    $(ls "$MUS" | wc -l) audio tracks: SIGIL's and SIGIL II's songs"
 elif ls "$DATA"/music/Track*.wav > /dev/null 2>&1; then
   cp "$DATA"/music/Track*.wav "$MUS"/
