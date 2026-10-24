@@ -117,7 +117,7 @@ if [ -n "$ROMMAPS" ]; then
           --disc $(ls "$DISC"/*.WAD) ${NOREJECT:+--no-reject} --out "$HERE/build/rom_iwad.wad"
   IWAD="$HERE/build/rom_iwad.wad"
 fi
-# CART4=1: the DOOM disc for the 4 MB RAM cart too (README "The 4 MB cart"): textures and flats no game
+# CART4=1: the DOOM disc for the 4 MB RAM cart too (README "Building", 1b): textures and flats no game
 # uses stubbed, 13 walls in 4-bit (16 colours), so the game ends below the cart's save area
 if [ -n "${CART4:-}" ] && [ -z "$ROMMAPS" ]; then
   echo "==> the IWAD for the 4 MB cart (tools/make_cart4.py)"

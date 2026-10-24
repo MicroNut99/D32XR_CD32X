@@ -67,7 +67,7 @@ Also:
 - **SIGIL's "real" soundtracks** (Buckethead for SIGIL, Thorr for SIGIL II) are not on the discs: the only SIGIL music supplied was the OPL soundtrack video, so its CD tracks and streamed songs sound like FM synth music. SIGIL II's songs are its MIDIs played through an OPL3 emulator with DOOM's instruments, the same kind of sound. Give the build other WAVs (`data/sigil_cdda/Track02-23.wav`) to change that.
 - **No skill / level choice when PLUTONIA, SIGIL or SIGIL II start:** like Fusion's WADs without attract demos, the title goes straight into the first map on medium. Pick the skill and the level with Start, Game, New Game.
 - **The preload** (16 MB cart) holds SOUNDS, DOOM, DOOM II and RESURRECTION. TNT MINI, PLUTONIA and the SIGILs are read from the CD (no room left in pages 2-6).
-- **8 MB cart:** runs, without the preload. **4 MB cart:** refused (the game's 4 MB would overwrite the shared save area).
+- **8 MB cart:** runs, without the preload. **4 MB cart:** the normal DOOM disc is refused (its game fills the whole 4 MB, save area included); the switched build `CART4=1` runs on it, with 13 wall textures in 16 colours (see "Building", 1b).
 - **Black patches** in some outdoor spots (also in Plutonia MAP07): gaps the 32X engine leaves empty, as in Fusion.
 - **FMV sound in ares** is rough on this disc and on Fusion's own disc alike (the same recording, measured): an emulator matter as far as can be told.
 - **Console:** not run yet.
@@ -109,9 +109,35 @@ NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Needs the 8 MB or 16 MB RAM cart (the 4 MB board is refused: the game fills it, save area
-  included). On 16 MB, DOOM, DOOM II and RESURRECTION are preloaded into the cart.
+  included; for the 4 MB cart build 1b instead). On 16 MB, DOOM, DOOM II and RESURRECTION are
+  preloaded into the cart.
 - SIGIL and SIGIL II are not on this disc. `WITHSIGIL=1` puts them back (only the maps that fit the
   32X's RAM from the CD, with SIGIL's songs streamed from the data track).
+
+**1b. The DOOM disc for the 4 MB cart** (`CART4=1`; the same five games):
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+CART4=1 NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
+```
+
+- Runs on the 4, 8 and 16 MB RAM carts, and saves in the cart's save area beside the game like
+  the other boards. The log line `4 MB cart: yes (the game ends at 0x3EF464, 2972 bytes before the
+  save area ...)` confirms the fit; `4 MB cart: no` means the program grew and it doesn't fit.
+- How it fits: on the 4 MB board the save area is the cart's top 64 KB (0x3F0000-0x3FFFFF), and the
+  normal game image (program + Fusion's IWAD) fills all 4 MB. `tools/make_cart4.py` makes a copy of
+  Fusion's IWAD 66 KB smaller (`build/cart4_iwad.wad`; the build log lists what it did):
+  - textures and flats none of the five games uses point to one small one (4 KB; every sprite is
+    used by one of the games, so none can go);
+  - 13 wall textures are stored in 16 colours (4-bit) instead of 256: WOOD5, TEKWALL4, PLAT1,
+    MARBFACE, MARBFAC3, COMPTALL, BIGDOOR2, then BRONZE3, METAL4, BRICK5, MARBLE3, PANEL4 and
+    BRICKLIT (the ones that lose the least colour). This is Fusion's own format - it already stores
+    55 of its 148 textures that way - and the engine needs no change. The skies stay as they are.
+- The difference to the normal disc: those 13 walls in 16 colours, on every board the disc runs on.
+  Use the normal disc on the 8 / 16 MB carts for full colour (and the preload on 16 MB).
+- Tested in ares on the 4 MB cart: boot, all five games (10 levels, 60 s each, from the CD), the
+  options written to save piece 11 with the other 15 pieces and the game untouched, also after a
+  reboot. A checkpoint save itself is untested (Fusion saves at checkpoints, after the first area).
 
 **2. The SIGIL disc** (SIGIL and SIGIL II, 12 of their 18 levels; CD audio = Buckethead and THORR):
 
@@ -188,7 +214,8 @@ dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits.
 | `make_preload.py`, `make_splash.py`, `build_game.sh` | the preload plan and checksums, the loading screen, the game build |
 | `make_rommaps.py` | the SIGIL disc's IWAD: the ROM maps in the engine's own form, DOOM II's monster sprites and unused textures / flats pointed to one small one |
 | `make_sigil_albums.py` | the SIGIL disc's 22 CD audio tracks from Buckethead's and THORR's albums |
-| `fit_4mb.py` | cuts the SIGIL disc's game to its used size, so it runs on the 4 MB board beside the save area |
+| `fit_4mb.py` | cuts the game to its used size (SIGIL disc, `CART4=1` DOOM disc), so it runs on the 4 MB board beside the save area |
+| `make_cart4.py` | `CART4=1`: Fusion's IWAD 66 KB smaller for the 4 MB cart (unused textures/flats stubbed, 13 walls in 4-bit) |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
 
 ## Frame rate (SIGIL disc)
@@ -224,6 +251,12 @@ cache more often. Even `-O2` on the renderer's cart code alone grew the SDRAM co
 | 1 | the shared save area and other titles' data. Untouched, except DOOM's saves in **piece 11** and the loader's record in **piece 15** (test scratch) |
 | 2-6 | **the preload**: SOUNDS.WAD, DOOM.WAD, DOOM_II.WAD, RESURRECTION.WAD (10.1 MB of 10.3 MB) |
 | 7 | the game, second 2 MB (window 1 while the game runs) |
+
+**The 4 MB board** has no pages: the cart is the game's 4 MB, and the shared save area is its top
+64 KB (0x3F0000-0x3FFFFF, the same 16 pieces; DOOM's saves in piece 11). The loader copies a game
+there only when it ends below 0x3F0000 (`cd32x/sh2/cdloader_sh2.c`), else it shows "THIS DISC NEEDS
+THE 8 MB OR 16 MB RAM CART". The SIGIL disc and the `CART4=1` DOOM disc fit; the normal DOOM disc
+doesn't. No preload: the WADs are read from the CD.
 
 **How the game reads a preloaded WAD** (`d32xr/src-md/scd_fs.c`):
 - It reads from the cart instead of the CD: same bytes, no seeking.
