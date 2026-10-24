@@ -800,7 +800,17 @@ class Converter:
         average in linear light, nearest palette colour in CIELAB with light error diffusion
         (smooth gradients in photos and paintings)"""
         from PIL import Image
-        src = Image.open(path).convert('RGBA')
+        if path.startswith('lump:'):
+            # a picture of the PWAD itself (SIGIL's SIGILINT, SIGIL II's widescreen SIGILIN2): DOOM's
+            # 320 x 200 screen is 4:3 with tall pixels - square pixels first (200 -> 240 lines), then
+            # the 4:3 middle as below (a 446-wide picture loses its sides, as on a 4:3 DOOM)
+            pw, ph, _, _, px, mk = pc_patch(self.pc.by[path[5:]]['data'])
+            pal = np.frombuffer(self.pc.pal, np.uint8).reshape(256, 3)
+            rgb = pal[np.frombuffer(bytes(px), np.uint8)].reshape(ph, pw, 3)
+            rgb = rgb * np.frombuffer(bytes(mk), np.uint8).reshape(ph, pw, 1)
+            src = Image.fromarray(rgb.astype(np.uint8)).resize((pw, ph * 6 // 5), Image.LANCZOS).convert('RGBA')
+        else:
+            src = Image.open(path).convert('RGBA')
         img = Image.new('RGBA', src.size, (0, 0, 0, 255))
         img.alpha_composite(src)                        # transparent -> black
         img = img.convert('RGB')
@@ -1129,7 +1139,8 @@ def main():
     ap.add_argument('--game', choices=('plutonia', 'sigil', 'sigil2'), default='plutonia')
     ap.add_argument('--pc', required=True, nargs='+', help='the PC IWAD (and PWADs on top)')
     ap.add_argument('--title', help='SIGIL: the title picture')
-    ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture')
+    ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture (a file, or lump:NAME '
+                    'for a picture in the PWAD)')
     ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',
                     help='SIGIL: streamed PCM files on the data track (spcm) or the disc\'s CD audio tracks (cd)')
     ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL --music cd: the cdTrack of its title song (11 tracks: title, E?M1-9, intermission)')
