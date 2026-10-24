@@ -37,6 +37,9 @@ case " $* " in *" CD32X=1 "*) [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_I
 [ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->player) return;\n&|' "$B/p_inter.c"
 # TEST_STATS=1: emulator testing only - r_main.c keeps the renderer's peak use against its limits (r_stat)
 [ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c" && sed -i '1i #define R_STATS_STACK 1' "$B/marsonly.c"
+# TEST_DEBUG=1: emulator testing only - D32XR's timing screen on from the start (fps, game logic, BSP,
+# walls, planes, sprites, render, draw, total in ms; normally Options + MODE)
+[ -n "${TEST_DEBUG:-}" ] && sed -i 's/^VINT \tdebugmode = DEBUGMODE_NONE;/VINT \tdebugmode = DEBUGMODE_ALLCOUNT;/' "$B/marsnew.c"
 # TEST_WALLS=n TEST_PLANES=n: emulator testing only - other renderer limits (MAXWALLCMDS 165, MAXVISPLANES 32)
 [ -n "${TEST_WALLS:-}" ] && sed -i "s/^#define\tMAXWALLCMDS\t\t165/#define\tMAXWALLCMDS\t\t$TEST_WALLS/" "$B/r_local.h"
 [ -n "${TEST_PLANES:-}" ] && sed -i "s/^#define\tMAXVISPLANES\t32/#define\tMAXVISPLANES\t$TEST_PLANES/" "$B/r_local.h"
