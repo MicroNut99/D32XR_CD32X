@@ -25,7 +25,7 @@ The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source (viciious
 
 | | **DOOM disc** (IDKFA, the default) | **SIGIL disc** (`MUSIC=sigil` + the ROM maps, see Building) |
 |---|---|---|
-| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI | SIGIL (7 levels), SIGIL II (6 levels) |
+| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI | SIGIL (7 levels), SIGIL II (5 levels) |
 | RAM cart | 8 or 16 MB | 4, 8 or 16 MB |
 | CD audio tracks | **2-26: Fusion's IDKFA soundtrack**, taken byte for byte from your IDKFA disc image | **2-23: Buckethead's SIGIL and THORR's SIGIL II albums** (11 tracks each: title, the 9 maps, intermission; SIGIL's title and intermission are DOOM / Resurrection's IDKFA tracks; the 5 maps not on the disc get 1 s of silence) |
 | DOOM, RESURRECTION music | FM (Fusion's VGM) or, with the music option on CD, the IDKFA tracks | FM (the CD option means FM here: the CD tracks are SIGIL's) |
@@ -113,24 +113,28 @@ NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 - SIGIL and SIGIL II are not on this disc. `WITHSIGIL=1` puts them back (only the maps that fit the
   32X's RAM from the CD, with SIGIL's songs streamed from the data track).
 
-**2. The SIGIL disc** (SIGIL and SIGIL II, 13 of their 18 levels; CD audio = Buckethead and THORR):
+**2. The SIGIL disc** (SIGIL and SIGIL II, 12 of their 18 levels; CD audio = Buckethead and THORR):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-ROMMAPS="E5M4 E5M5 E5M9 E6M1 E6M4 E6M8" ROMBUDGET=30 NOREJECT=1 SIGILONLY=1 MUSIC=sigil NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Runs on the 4, 8 and 16 MB RAM carts. The log line `4 MB cart: yes (...)` says it fits before
   the 4 MB board's save area; on 16 MB, SIGIL.WAD and SIGIL_II.WAD are preloaded.
-- Levels: E5M1-5, E5M8, E5M9 and E6M1-4, E6M8, E6M9. E5M6, E5M7, E6M5, E6M6 and E6M7 are too big
-  for the 32X's RAM.
-- `ROMMAPS`: the six maps too big to load from the CD run from the game's ROM image in the cart
+- Levels: E5M1-5, E5M8, E5M9 and E6M2-4, E6M8, E6M9. E5M6, E5M7, E6M5, E6M6 and E6M7 are too big
+  for the 32X's RAM; E6M1 fits (add it to `ROMMAPS`, `ROMBUDGET=30`) but plays badly: about 10 fps
+  and its many far-off enemies shoot from the darkness.
+- `ROMMAPS`: the maps too big to load from the CD run from the game's ROM image in the cart
   (`tools/make_rommaps.py`): their read-only parts are used in place.
-- `ROMBUDGET=30`: KB of each ROM map's own textures (more = fewer look-alike textures, but at 32 the
-  game no longer fits the 4 MB board).
+- `ROMBUDGET=64`: KB of each ROM map's own textures (more = fewer look-alike textures; with E6M1
+  too, 30 is the most that still fits the 4 MB board).
 - `NOREJECT=1`: the ROM maps without their sight tables (room in the ROM).
-- `SIGILONLY=1`: DOOM.WAD (and the other games) left off; their textures make room for the sixth
-  ROM map.
+- `SIGILONLY=1`: DOOM.WAD (and the other games) left off; their textures make room for the ROM
+  maps and their textures.
+- `DRAWDIST=far`: the farther draw distance (darkness from 190 walls a frame, beyond 1536 units);
+  without it, from 150 walls beyond 1024 (less of the view, but busy views reach the wall limit
+  far less often).
 - The music: `data/sigil_albums/Track02-23.wav`, made once from your albums:
 
 ```
@@ -149,7 +153,7 @@ python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL I
 
 | Want | Change the SIGIL command |
 |---|---|
-| keep DOOM on it (12 levels: no E6M1) | drop `SIGILONLY=1` and `E6M1`: `ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=24 NOREJECT=1 MUSIC=sigil` (8 / 16 MB only) |
+| keep DOOM on it (the same 12 levels) | drop `SIGILONLY=1` and use `ROMBUDGET=24` (DOOM's textures take the room; 8 / 16 MB only) |
 | SIGIL's songs streamed instead of CD audio | `WITHSIGIL=1` on the DOOM disc instead (the CD maps only) |
 
 **Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
