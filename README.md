@@ -165,7 +165,7 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
 - `DRAWDIST=far`: the farther draw distance (darkness from 190 walls a frame, beyond 1536 units);
   without it, from 150 walls beyond 1024 (less of the view, but busy views reach the wall limit
   far less often).
-- `NOIDLE=1`: leaves out the SIGIL disc's pauses in the SH2 wait loops (on by default; see
+- `NOIDLE=1`: leaves out the pauses in the SH2 wait loops (both discs; on by default; see
   "Frame rate").
 - SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_3.jpg` (320 x 224) when it's
   there, else SIGIL's `sigil-wallpaper_1.jpg`.
@@ -218,25 +218,44 @@ dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits.
 | `make_cart4.py` | `CART4=1`: Fusion's IWAD 66 KB smaller for the 4 MB cart (unused textures/flats stubbed, 13 walls in 4-bit) |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
 
-## Frame rate (SIGIL disc)
+## Frame rate
 The two SH2s share one bus, and the main SH2 has priority. A wait loop that reads a register or a
-lock as fast as it can takes the bus again and again while the other SH2 draws. On the SIGIL disc
-every such loop pauses about 1.4-7 us between tries, in registers from the cache (`CD32X_PAUSE` in
-`d32xr/doomdef.h`; the same fix as OpenLara CD32X's REV-1). The loops: the second SH2 waiting for
-the next wall from the BSP walk (`r_phase2.c`), the wall drawing waiting for a prepared wall and
-the wall lock (`r_phase6.c`), the floor / ceiling lock (`r_phase7.c`), the main SH2 waiting for
-the second one (`mars.h`) and the second SH2's idle loop (`marsnew.c`). It costs 112 bytes of
-SDRAM; the main SH2's stack keeps about 2 KB spare above its measured depth (7.1 KB).
+lock as fast as it can takes the bus again and again while the other SH2 draws. On both discs every
+such loop of a frame pauses about 1.4-7 us between tries, in registers from the cache
+(`CD32X_PAUSE` in `d32xr/doomdef.h`; the same fix as OpenLara CD32X's REV-1). The loops: the second
+SH2 waiting for the next wall from the BSP walk (`r_phase2.c`), the wall drawing waiting for a
+prepared wall and the wall lock (`r_phase6.c`), the floor / ceiling lock and hand-over
+(`r_phase7.c`), the sprite hand-over (`r_phase8.c`), the end of the frame (`p_tick.c`), the main
+SH2 waiting for the second one's walls / planes / sprites / sight checks (`mars.h`) and the second
+SH2's idle loop (`marsnew.c`). The rare waits (melt, automap, title, sound / video set-up) stay as
+they were: each pause costs about 12 bytes, and the DOOM disc's program has 128 bytes to spare
+beside Fusion's IWAD (the sprite-setup error texts are shorter for it, `r_data.c`). The SIGIL disc's
+main SH2 stack keeps about 2 KB spare above its measured depth (7.1 KB). `NOIDLE=1` leaves the
+pauses out.
 
 Measured in ares with its console timing (`ARES_32X_TIMING=console`), standing 60 s at the start
-of a map (god mode), frames drawn:
+of a map (god mode, no input), frames drawn:
 
 | Map | Without | With the pauses |
 |---|---|---|
-| E5M9 Realm of Iblis | 8.9 fps | 9.8 fps (+10 %) |
-| E6M3 Twilight Desolation | 6.0 fps | 6.4 fps (+8 %) |
-| E6M4 Fragments of Sanity | 6.3 fps | 6.7 fps (+7 %) |
-| E6M8 Abyss of Despair | 6.9 fps | 7.3 fps (+5 %) |
+| SIGIL E5M9 Realm of Iblis | 8.9 fps | 9.8 fps (+10 %) |
+| SIGIL E6M3 Twilight Desolation | 6.0 fps | 6.4 fps (+8 %) |
+| SIGIL E6M4 Fragments of Sanity | 6.3 fps | 6.7 fps (+7 %) |
+| SIGIL E6M8 Abyss of Despair | 6.9 fps | 7.3 fps (+5 %) |
+| PLUTONIA MAP01 | 14.7 fps | 15.0 fps (+2 %) |
+| PLUTONIA MAP04 | 19.9 fps | 20.0 fps |
+| PLUTONIA MAP06 | 9.2 fps | 9.8 fps (+6 %) |
+| PLUTONIA MAP08 | 16.5 fps | 18.3 fps (+11 %) |
+| PLUTONIA MAP20 | 6.0 fps | 6.7 fps (+11 %) |
+| PLUTONIA MAP32 | 13.3 fps | 14.1 fps (+6 %) |
+
+(SIGIL: an earlier set of pause sites; PLUTONIA: the `CART4=1` disc on the 4 MB cart.) Compare
+builds standing still: a scripted player who walks and fires ends up somewhere else in each build
+(the game runs by time, the script by frames), wakes other monsters, and the frame rate then swings
+between about 7 and 15 fps whatever the code.
+
+All 137 levels of the DOOM disc (16 MB cart) and the SIGIL disc's 12 levels (4 MB cart) were played
+60 s each with the pauses in ares: no crash, hang or error screen.
 
 Tried and left out: the renderer at `-O2` instead of `-Os`. Its hot code is in the 32X's SDRAM;
 `-O2` makes it 4 KB bigger, which the stack doesn't have (black screen), and with 6 KB of zone
@@ -343,7 +362,7 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
-| `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (SIGIL disc, `CD32X_IDLE`; README "Frame rate"). |
+| `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `p_tick.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c`, `r_phase8.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (both discs, `CD32X_IDLE`; README "Frame rate"). `r_data.c`: shorter sprite-setup error texts (room for them on the DOOM disc). |
 
 ## The boot stack
 
