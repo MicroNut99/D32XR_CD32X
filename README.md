@@ -169,6 +169,10 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   "Frame rate").
 - SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_3.jpg` (320 x 224) when it's
   there, else SIGIL's `sigil-wallpaper_1.jpg`.
+- Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
+  music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
+  song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
+  longer played.
 - The music: `data/sigil_albums/Track02-23.wav`, made once from your albums:
 
 ```
@@ -200,7 +204,9 @@ budgets; `SIGILCDDA=<folder>` other SIGIL CD audio tracks.
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
 `TEST_STATS=1` the renderer's counters (walls, floor / ceiling areas, stack depth) for an ares RAM
-dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits.
+dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits; `TEST_EXIT=1` every level ends by itself after
+about 300 frames (to see the intermission and the next loading screen); `TEST_DEBUG=1` D32XR's
+timing screen on from the start (in a disc you play: Options + MODE; its times read 0 in ares).
 
 **The build's tools** (`tools/`):
 

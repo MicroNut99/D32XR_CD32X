@@ -142,6 +142,12 @@ void G_DoLoadLevel (void)
 	gamemap = gamemapinfo->mapNumber;
 	startmap = gamemap;
 
+#ifdef CD32X_CDONLY
+	/* the SIGIL disc: no music while the level loads (the intermission's or the title's song
+	   would play on, broken up by the disc reads); the level's own starts when it's loaded */
+	if (gameinfo.cdMusic)
+		S_StopSong();
+#endif
 	P_SetupLevel (gamemaplump, gameskill, DMAPINFO_STRFIELD(gamemapinfo, sky));
 	gameaction = ga_nothing; 
 

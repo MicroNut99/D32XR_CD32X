@@ -1043,11 +1043,14 @@ class Converter:
         # the 11 songs on tracks --cdtrack .. --cdtrack + 10 (DMAPINFO cdTrack n = the disc's track n + 1)
         cdt = lambda song: self.args.cdtrack + order.index(song)
         if self.args.music == 'cd':
-            mus_cfg = ['    cdMusic = 1', '    titleCdTrack = %d' % cdt('D_INTRO'), '    intermissionCdTrack = %d' % cdt('D_INTER'),
+            mus_cfg = ['    cdMusic = 1', '    intermissionCdTrack = %d' % cdt('D_INTER'),
                        '    victoryCdTrack = %d' % cdt('D_INTER'), '    endCdTrack = %d' % cdt('D_INTER')]
         else:
             mus_cfg = ['    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir]
-        dm = ['gameinfo', '{', '    titleMus = "D_INTRO"', '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
+        # the title (the logo while the first map loads) is silent on the SIGIL CD audio disc: no
+        # title song -> S_StartSong stops the music (cdMusic, CD track 0)
+        dm = ['gameinfo', '{', '    titleMus = "%s"' % ('' if self.args.music == 'cd' else 'D_INTRO'),
+              '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
               '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"',
               # the title shows for SIGIL_TITLE_TICS, then the game starts by itself (no button; no
               # credits pages, no attract demo) - Fusion's 13000 waited minutes for a press
