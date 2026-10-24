@@ -26,15 +26,11 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # the SIGIL disc's speed-ups (README "Frame rate"; the DOOM disc has no room for them):
 # - pauses in the wait loops of the two SH2s (doomdef.h CD32X_PAUSE; off: NOIDLE=1)
 [ -n "${ROMMAPS:-}" ] && [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h"
-# - the renderer's code in the cart built for speed (-O2) instead of size (-Os) (off: NOO2=1); its
-#   code in the 32X's SDRAM (ATTR_DATA_CACHE_ALIGN) stays -Os: -O2 there takes 4 KB of the SDRAM,
-#   and the main SH2's stack needs it
-[ -n "${ROMMAPS:-}" ] && [ -z "${NOO2:-}" ] && for f in "$B"/r_main.c "$B"/r_phase*.c; do
-  sed -i '1i #pragma GCC optimize ("O2")' "$f"; done
-# TEST_O2SDRAM=1: emulator testing only - the renderer's SDRAM code at -O2 too (4 KB more SDRAM: the
-# main SH2's stack room drops below its measured depth)
+# TEST_O2SDRAM=1: emulator testing only - the renderer's SDRAM code at -O2 (4 KB more SDRAM; the zone
+# gives 6 KB so the main SH2's stack still fits - too little zone for the biggest maps)
 [ -n "${TEST_O2SDRAM:-}" ] && for f in "$B"/r_main.c "$B"/r_phase*.c; do sed -i '1i #define CD32X_O2_SDRAM 1' "$f"; done && \
-  sed -i 's|^#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("Os")))$|#ifdef CD32X_O2_SDRAM\n#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("O2")))\n#else\n&\n#endif|' "$B/doomdef.h"
+  sed -i 's|^#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("Os")))$|#ifdef CD32X_O2_SDRAM\n#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("O2")))\n#else\n&\n#endif|' "$B/doomdef.h" && \
+  sed -i 's|^#define BASE_ZONE_SIZE 0x33000$|#define BASE_ZONE_SIZE 0x31800|' "$B/marsnew.c"
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
