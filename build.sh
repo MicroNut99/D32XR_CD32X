@@ -85,13 +85,12 @@ for G in sigil sigil2; do
   else                    PW=sigil2.wad; PIC=Sigil2; OUTW=SIGIL_II.WAD; CDT=12; fi
   SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
-  # the pictures (in this order - what the builds have always picked): the title <name>.jpg, else
-  # <name>_1.jpg, .png, the .webp from the SIGIL download; the tally / loading background: SIGIL II's
-  # own Sigil2_4.jpg, else Sigil2_3.jpg (320 x 224); else sigil-wallpaper.jpg, else
-  # sigil-wallpaper_1.jpg (made at 320 x 224: used as it is)
+  # the pictures (in this order): the title <name>.jpg, else <name>_1.jpg, .png, the .webp from the
+  # SIGIL download; the tally / loading background (SIGIL and SIGIL II): Sigil2_4.jpg, else
+  # Sigil2_3.jpg (320 x 224), else sigil-wallpaper.jpg, else sigil-wallpaper_1.jpg
   PIC="$(first_of "$DATA/sigil/$PIC.jpg" "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp")"
-  WALL2=""; [ $G = sigil2 ] && WALL2="$(first_of "$DATA/sigil/Sigil2_4.jpg" "$DATA/sigil/Sigil2_3.jpg")"
-  WALL="$(first_of ${WALL2:+"$WALL2"} "$DATA/sigil/sigil-wallpaper.jpg" "$DATA/sigil/sigil-wallpaper_1.jpg")"
+  WALL="$(first_of "$DATA/sigil/Sigil2_4.jpg" "$DATA/sigil/Sigil2_3.jpg" "$DATA/sigil/sigil-wallpaper.jpg" \
+                    "$DATA/sigil/sigil-wallpaper_1.jpg")"
   echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
   ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}${ROMBUDGETS:+ --rom-budgets ${ROMBUDGETS// /,}}"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
