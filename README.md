@@ -167,8 +167,8 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   far less often).
 - `NOIDLE=1`: leaves out the pauses in the SH2 wait loops (both discs; on by default; see
   "Frame rate").
-- SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_3.jpg` (320 x 224) when it's
-  there, else SIGIL's `sigil-wallpaper_1.jpg`.
+- SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_4.jpg` (320 x 224) when it's
+  there, else `Sigil2_3.jpg`, else SIGIL's `sigil-wallpaper_1.jpg`.
 - Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
   music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
   song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
