@@ -23,16 +23,17 @@ The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source (viciious
 
 ## The two discs
 
-| | **IDKFA disc** (default) | **SIGIL disc** (`MUSIC=sigil`) |
+| | **DOOM disc** (IDKFA, the default) | **SIGIL disc** (`MUSIC=sigil` + the ROM maps, see Building) |
 |---|---|---|
-| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, SIGIL, SIGIL II, TNT MINI | the same |
-| CD audio tracks | **2-26: Fusion's IDKFA soundtrack**, taken byte for byte from your IDKFA disc image | **2-23: SIGIL's and SIGIL II's songs** (11 each) |
+| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI | SIGIL (7 levels), SIGIL II (6 levels) |
+| RAM cart | 8 or 16 MB | 4, 8 or 16 MB |
+| CD audio tracks | **2-26: Fusion's IDKFA soundtrack**, taken byte for byte from your IDKFA disc image | **2-23: Buckethead's SIGIL and THORR's SIGIL II albums** (11 tracks each: title, the 9 maps, intermission; SIGIL's title and intermission are DOOM / Resurrection's IDKFA tracks; the 5 maps not on the disc get 1 s of silence) |
 | DOOM, RESURRECTION music | FM (Fusion's VGM) or, with the music option on CD, the IDKFA tracks | FM (the CD option means FM here: the CD tracks are SIGIL's) |
 | DOOM II, PLUTONIA music | FM, or with CD the IDKFA tracks: these games have no tracks of their own on that disc, so their track numbers wrap onto DOOM's songs (as on Fusion's own IDKFA disc) | FM |
 | TNT MINI music | FM, or with CD the IDKFA tracks by its song numbers (it has no tracks of its own either) | FM |
-| SIGIL, SIGIL II music | **streamed from the data track** (Fusion's SPCM: 8-bit, 21.4 kHz mono), whatever the music option (off silences it) | **CD audio**, whatever the music option (off silences it) |
-| Left off the disc | `MAPDEV.WAD` (Fusion's map-testing file; the menu hides it) and the loose `VGM_*` folders (spare copies of music already inside the WADs) | nothing |
-| Size | about 79:46 of an 80:00 CD (estimated from the IDKFA cue; the build prints the real figure and warns above 80:00) | 64:52 |
+| SIGIL, SIGIL II music | not on this disc (`WITHSIGIL=1`: streamed from the data track, Fusion's SPCM) | **CD audio**, whatever the music option (off silences it) |
+| Left off the disc | `MAPDEV.WAD` (Fusion's map-testing file; the menu hides it) and the loose `VGM_*` folders (spare copies of music already inside the WADs) | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI, MAPDEV |
+| Size | about 79:46 of an 80:00 CD (estimated from the IDKFA cue; the build prints the real figure and warns above 80:00) | about 72 minutes |
 
 Both are **mixed-mode** discs: one `.bin` (data track 1, then the audio tracks, no gaps between them, like the IDKFA disc's cue) and its `.cue`. The audio tracks can be replaced later without touching the data.
 
@@ -95,23 +96,73 @@ Also:
 - `genisoimage`, Python 3 with NumPy and Pillow (`sudo apt install python3-numpy python3-pil genisoimage`). No SciPy.
 - Only for `tools/make_sigil_cdda.sh`: ffmpeg, git, cmake, gcc / g++ (it builds libADLMIDI).
 
-**The IDKFA disc:**
+Every command starts with the `cd`, so it works from any folder. The disc ends up in
+`discs/<NAME>/<NAME>.cue` with its `.bin`: burn or load the `.cue`. A build takes about 5 minutes.
+The discs build different game programs, so after switching discs the first boot copies the game
+into the cart again.
+
+**1. The DOOM disc** (DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI; CD audio = the IDKFA soundtrack):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-NAME=D32XR_CD32X_IDKFA bash build.sh 2>&1 | tee build_log.txt
+NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 ```
 
-**The SIGIL disc:**
+- Needs the 8 MB or 16 MB RAM cart (the 4 MB board is refused: the game fills it, save area
+  included). On 16 MB, DOOM, DOOM II and RESURRECTION are preloaded into the cart.
+- SIGIL and SIGIL II are not on this disc. `WITHSIGIL=1` puts them back (only the maps that fit the
+  32X's RAM from the CD, with SIGIL's songs streamed from the data track).
+
+**2. The SIGIL disc** (SIGIL and SIGIL II, 13 of their 18 levels; CD audio = Buckethead and THORR):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-MUSIC=sigil NAME=D32XR_CD32X_SIGIL bash build.sh 2>&1 | tee build_log.txt
+ROMMAPS="E5M4 E5M5 E5M9 E6M1 E6M4 E6M8" ROMBUDGET=30 NOREJECT=1 SIGILONLY=1 MUSIC=sigil NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
 ```
 
-Each takes about 5 minutes (converting PLUTONIA with the texture pack is the slow part). The disc is `discs/<NAME>/<NAME>.cue` with its `.bin`. Burn or load the `.cue`. The two discs build different game programs, so after switching discs the first boot copies the game into the cart again.
+- Runs on the 4, 8 and 16 MB RAM carts. The log line `4 MB cart: yes (...)` says it fits before
+  the 4 MB board's save area; on 16 MB, SIGIL.WAD and SIGIL_II.WAD are preloaded.
+- Levels: E5M1-5, E5M8, E5M9 and E6M1-4, E6M8, E6M9. E5M6, E5M7, E6M5, E6M6 and E6M7 are too big
+  for the 32X's RAM.
+- `ROMMAPS`: the six maps too big to load from the CD run from the game's ROM image in the cart
+  (`tools/make_rommaps.py`): their read-only parts are used in place.
+- `ROMBUDGET=30`: KB of each ROM map's own textures (more = fewer look-alike textures, but at 32 the
+  game no longer fits the 4 MB board).
+- `NOREJECT=1`: the ROM maps without their sight tables (room in the ROM).
+- `SIGILONLY=1`: DOOM.WAD (and the other games) left off; their textures make room for the sixth
+  ROM map.
+- The music: `data/sigil_albums/Track02-23.wav`, made once from your albums:
 
-**Options:** `NAME=<name>` the disc's name; `MUSIC=sigil` the SIGIL disc; `FIRE=0` no title fire; `HIRES=0` PLUTONIA without the texture pack; `CUT="..."` the Fusion files left off (`CUT=""` keeps all); `IDKFA=<cue>` the IDKFA disc image; `PLUT_BUDGETS=<file>` Plutonia's texture budgets.
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL II THORR Music/SIGIL_II_MP3_V1_0.WAD" --idkfa "DOOM CD32X FUSION V3 with IDKFA Soundtrack/DOOM CD32X FUSION V3 with IDKFA Soundtrack.cue" --out data/sigil_albums --cap 280
+```
+
+  (needs ffmpeg: Buckethead's 9 tracks, the SIGIL II MP3 WAD's 11 songs, and SIGIL's title and
+  intermission from the IDKFA disc; every song at -21 dBFS, faded out at 4:40 so the disc fits a
+  74-minute CD.) Without `data/sigil_albums` the disc uses the OPL renders in `data/sigil_cdda`.
+- Engine changes only on this disc (the DOOM disc's program has no room for them beside Fusion's
+  IWAD): the ROM-map loader, the draw distance (far open lines drawn as darkness in busy views)
+  and the black clear after a frame that ran out of walls.
+
+**3. Variants of the SIGIL disc:**
+
+| Want | Change the SIGIL command |
+|---|---|
+| keep DOOM on it (12 levels: no E6M1) | drop `SIGILONLY=1` and `E6M1`: `ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=24 NOREJECT=1 MUSIC=sigil` (8 / 16 MB only) |
+| SIGIL's songs streamed instead of CD audio | `WITHSIGIL=1` on the DOOM disc instead (the CD maps only) |
+
+**Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
+Fusion), part of it in stack space the game never reaches.
+
+**Options:** `NAME=<name>` the disc's name; `MUSIC=sigil` the SIGIL disc's CD audio; `FIRE=0` no
+title fire; `HIRES=0` PLUTONIA without the texture pack; `CUT="..."` the Fusion files left off
+(`CUT=""` keeps all); `IDKFA=<cue>` the IDKFA disc image; `PLUT_BUDGETS=<file>` Plutonia's texture
+budgets; `SIGILCDDA=<folder>` other SIGIL CD audio tracks.
+
+**Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
+`TEST_STATS=1` the renderer's counters (walls, floor / ceiling areas, stack depth) for an ares RAM
+dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits.
 
 **The build's tools** (`tools/`):
 
@@ -123,6 +174,9 @@ Each takes about 5 minutes (converting PLUTONIA with the texture pack is the slo
 | `extract_cue_audio.py` | the IDKFA disc's audio tracks, byte for byte |
 | `make_sigil_cdda.sh`, `oplrender.c` | SIGIL's 22 songs as WAVs: cut from the OPL soundtrack video (SIGIL) and rendered through an OPL3 emulator (SIGIL II) |
 | `make_preload.py`, `make_splash.py`, `build_game.sh` | the preload plan and checksums, the loading screen, the game build |
+| `make_rommaps.py` | the SIGIL disc's IWAD: the ROM maps in the engine's own form, DOOM II's monster sprites and unused textures / flats pointed to one small one |
+| `make_sigil_albums.py` | the SIGIL disc's 22 CD audio tracks from Buckethead's and THORR's albums |
+| `fit_4mb.py` | cuts the SIGIL disc's game to its used size, so it runs on the 4 MB board beside the save area |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
 
 ## The cart
