@@ -53,6 +53,7 @@ LEVEL_MODEL = (5117.50, 13.88, 9.75, 4.19, 0.00, 21.97, 0.00, 50.11, 0.00, 1.75,
 # the largest level that loaded and played (Plutonia MAP23: 157 KB); MAP28 (216 KB) and MAP29
 # (184 KB) stop with "Z_Malloc failed" before the first frame
 MAX_AUX = 64                     # MAX_AUX_TEXTURES in the CD32X build (p_setup.c)
+SIGIL_TITLE_TICS = 300           # SIGIL / SIGIL II: the title's time before the game starts by itself
 MAPLUMPS = ['THINGS', 'LINEDEFS', 'SIDEDEFS', 'VERTEXES', 'SEGS', 'SSECTORS', 'NODES', 'SECTORS', 'REJECT', 'BLOCKMAP']
 
 # the engine's switch list (p_switch.c) and animations (p_spec.c)
@@ -1021,8 +1022,11 @@ class Converter:
         else:
             mus_cfg = ['    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir]
         dm = ['gameinfo', '{', '    titleMus = "D_INTRO"', '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
-              '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
-              '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % txt(endtext),
+              '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"',
+              # the title shows for SIGIL_TITLE_TICS, then the game starts by itself (no button; no
+              # credits pages, no attract demo) - Fusion's 13000 waited minutes for a press
+              '    titleTime = %d' % SIGIL_TITLE_TICS, '    titlePage = "title"',
+              '    creditsTime = 0', '    creditsPage = ""', '    endText = "%s"' % txt(endtext),
               '    endFlat = "MFLR8_3"', '\tendShowCast = 0', '\tstopFireTime = 0', '\ttitleStartPos = 0',
               '\tnoAttractDemo = 1', '}']
         # the map's sky goes by the base game's hell sky's name: its own SKY5 / SKY6 picture under that
