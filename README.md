@@ -139,6 +139,10 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
 - `DRAWDIST=far`: the farther draw distance (darkness from 190 walls a frame, beyond 1536 units);
   without it, from 150 walls beyond 1024 (less of the view, but busy views reach the wall limit
   far less often).
+- `NOIDLE=1`: leaves out the SIGIL disc's pauses in the SH2 wait loops (on by default; see
+  "Frame rate").
+- SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_3.jpg` (320 x 224) when it's
+  there, else SIGIL's `sigil-wallpaper_1.jpg`.
 - The music: `data/sigil_albums/Track02-23.wav`, made once from your albums:
 
 ```
@@ -186,6 +190,31 @@ dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits.
 | `make_sigil_albums.py` | the SIGIL disc's 22 CD audio tracks from Buckethead's and THORR's albums |
 | `fit_4mb.py` | cuts the SIGIL disc's game to its used size, so it runs on the 4 MB board beside the save area |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
+
+## Frame rate (SIGIL disc)
+The two SH2s share one bus, and the main SH2 has priority. A wait loop that reads a register or a
+lock as fast as it can takes the bus again and again while the other SH2 draws. On the SIGIL disc
+every such loop pauses about 1.4-7 us between tries, in registers from the cache (`CD32X_PAUSE` in
+`d32xr/doomdef.h`; the same fix as OpenLara CD32X's REV-1). The loops: the second SH2 waiting for
+the next wall from the BSP walk (`r_phase2.c`), the wall drawing waiting for a prepared wall and
+the wall lock (`r_phase6.c`), the floor / ceiling lock (`r_phase7.c`), the main SH2 waiting for
+the second one (`mars.h`) and the second SH2's idle loop (`marsnew.c`). It costs 112 bytes of
+SDRAM; the main SH2's stack keeps about 2 KB spare above its measured depth (7.1 KB).
+
+Measured in ares with its console timing (`ARES_32X_TIMING=console`), standing 60 s at the start
+of a map (god mode), frames drawn:
+
+| Map | Without | With the pauses |
+|---|---|---|
+| E5M9 Realm of Iblis | 8.9 fps | 9.8 fps (+10 %) |
+| E6M3 Twilight Desolation | 6.0 fps | 6.4 fps (+8 %) |
+| E6M4 Fragments of Sanity | 6.3 fps | 6.7 fps (+7 %) |
+| E6M8 Abyss of Despair | 6.9 fps | 7.3 fps (+5 %) |
+
+Tried and left out: the renderer at `-O2` instead of `-Os`. Its hot code is in the 32X's SDRAM;
+`-O2` makes it 4 KB bigger, which the stack doesn't have (black screen), and with 6 KB of zone
+given up for a test it was *slower* (E6M4 6.3, E6M8 7.0 fps): bigger code misses the SH2's 4 KB
+cache more often. Even `-O2` on the renderer's cart code alone grew the SDRAM code 4 KB (inlining).
 
 ## The cart
 
@@ -281,6 +310,7 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
+| `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (SIGIL disc, `CD32X_IDLE`; README "Frame rate"). |
 
 ## The boot stack
 
