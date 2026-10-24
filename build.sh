@@ -121,6 +121,9 @@ python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
 ROMMAPS="$ROMMAPS" IWAD="$IWAD" CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
+# the ROM map disc (SIGIL): cut to its used length, so it also runs on the 4 MB RAM cart beside
+# the save area when it fits (tools/fit_4mb.py)
+[ -n "$ROMMAPS" ] && python3 "$HERE/tools/fit_4mb.py" "$ROMS/D32XR.32X" "$IWAD"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" "$DATA/splash.png" "$ROMS/IMAGE.RAW"

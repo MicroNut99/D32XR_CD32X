@@ -492,7 +492,9 @@ int main(void) {
         show_status(0x4D10);
         mb = cart_probe();
         show_status((uint16_t)(mb == 4 ? 0x4D11 : mb == 8 ? 0x4D12 : 0x4D13));
-        if (mb == 4) { splash_text(1); halt(0x4DE5); }       /* "NEEDS THE 8 MB OR 16 MB RAM CART" */
+        /* the 4 MB board: the shared save area (0x3F0000-0x3FFFFF) is in the game's 4 MB - only a
+           game that ends before it runs there (the SIGIL disc, tools/fit_4mb.py) */
+        if (mb == 4 && PL_ROM_LENGTH > 0x3F0000) { splash_text(1); halt(0x4DE5); }   /* "NEEDS THE 8 MB OR 16 MB RAM CART" */
         SC_COMM2 = FILE_D32XR;
         wait_cmd(CMD_OPEN_FILE);
         len = SC_COMM8_32;
