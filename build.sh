@@ -117,6 +117,16 @@ if [ -n "$ROMMAPS" ]; then
           --disc $(ls "$DISC"/*.WAD) ${NOREJECT:+--no-reject} --out "$HERE/build/rom_iwad.wad"
   IWAD="$HERE/build/rom_iwad.wad"
 fi
+# CART4=1: the DOOM disc for the 4 MB RAM cart too (README "The 4 MB cart"): textures and flats no game
+# uses stubbed, 13 walls in 4-bit (16 colours), so the game ends below the cart's save area
+if [ -n "${CART4:-}" ] && [ -z "$ROMMAPS" ]; then
+  echo "==> the IWAD for the 4 MB cart (tools/make_cart4.py)"
+  python3 "$HERE/tools/make_cart4.py" --iwad "$DATA/doom32xf.wad" --disc $(ls "$DISC"/*.WAD) \
+          --out "$HERE/build/cart4_iwad.wad" > "$HERE/build/cart4_log.txt" \
+    || { tail -5 "$HERE/build/cart4_log.txt"; echo "*** 4 MB IWAD failed"; exit 1; }
+  cat "$HERE/build/cart4_log.txt"
+  IWAD="$HERE/build/cart4_iwad.wad"
+fi
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
@@ -125,7 +135,7 @@ DRAWDIST="${DRAWDIST:-}" ROMMAPS="$ROMMAPS" IWAD="$IWAD" CDONLY="$CDONLY" PRELOA
 python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 # the ROM map disc (SIGIL): cut to its used length, so it also runs on the 4 MB RAM cart beside
 # the save area when it fits (tools/fit_4mb.py)
-[ -n "$ROMMAPS" ] && python3 "$HERE/tools/fit_4mb.py" "$ROMS/D32XR.32X" "$IWAD"
+{ [ -n "$ROMMAPS" ] || [ -n "${CART4:-}" ]; } && python3 "$HERE/tools/fit_4mb.py" "$ROMS/D32XR.32X" "$IWAD"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" "$DATA/splash.png" "$ROMS/IMAGE.RAW"
