@@ -46,14 +46,23 @@ typedef struct
    1024 map units; from 190, beyond 512; from 215, beyond 256. Busy views (SIGIL's open areas)
    stay under the limit instead of dropping far walls at random and letting the floors and
    ceilings bleed; views with fewer walls are drawn as before. */
+#ifdef CD32X_DRAWDIST_FAR
+/* build.sh DRAWDIST=far: later and farther - more of the view, but busy views reach MAXWALLCMDS
+   more often (ares: E5M4, E5M9, E6M1, E6M3, E6M8 in 13-30 % of frames; what is cut is black) */
 #define R_FAR_AFTER 190
+#define R_FAR_DIST(walls) (walls < 205 ? 1536/8 : walls < 218 ? 768/8 : 384/8)
+#else
+/* the default: E5M4, E6M2-4, E6M9 never reach the limit; E5M9, E6M1 in 1-3 % of frames, E6M8 in 17 % */
+#define R_FAR_AFTER 150
+#define R_FAR_DIST(walls) (walls < 190 ? 1024/8 : walls < 215 ? 512/8 : 256/8)
+#endif
 static boolean __attribute__((noinline)) R_FarLine(int x1, int y1, int x2, int y2, int walls)
 {
    /* in units of 8 map units (32-bit products), true distance from the view to the line */
    int px, py, dx, dy, dot, dd, dist;
    if (walls < R_FAR_AFTER)
       return false;
-   dist = walls < 205 ? 1536/8 : walls < 218 ? 768/8 : 384/8;
+   dist = R_FAR_DIST(walls);
    px = ((vd->viewx >> FRACBITS) - x1) >> 3;
    py = ((vd->viewy >> FRACBITS) - y1) >> 3;
    dx = (x2 - x1) >> 3;
