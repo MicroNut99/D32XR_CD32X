@@ -61,7 +61,9 @@ Also:
 
 ## What's missing
 
-- **SIGIL maps E5M4, E5M5, E5M6, E5M7, E5M9** and **SIGIL II maps E6M1, E6M4, E6M5, E6M6, E6M7, E6M8**: each map's level data alone (190-390 KB) is bigger than the 32X can hold (about 177 KB for a level and its textures together, measured in ares). Their music is on the SIGIL disc's CD tracks already, so they can be added if a way to fit them is found.
+- **SIGIL E5M6, E5M7 and SIGIL II E6M1, E6M5, E6M6, E6M7** are not on the SIGIL disc: E5M6, E5M7,
+  E6M5, E6M6 and E6M7 don't fit the 32X's RAM even as ROM maps; E6M1 fits but plays too badly (see
+  "Why six SIGIL levels are left out"). Their CD audio tracks are on the disc (1 s of silence), so the numbering stays.
 - **PLUTONIA MAP28 and MAP29:** the same reason (`Z_Malloc failed` in ares). The map before goes on to the next one that fits.
 - **Textures:** a map's own textures share the memory left after its level data. What doesn't fit is drawn as the base game's closest-looking texture of the same size (the build report lists every one). The SIGIL maps are so big that almost all their own textures are stand-ins (lava falls and red rock show as wood and step textures). Skies: the map's own sky only when it fits, else the base game's (SIGIL: the red hell sky).
 - **SIGIL's "real" soundtracks** (Buckethead for SIGIL, Thorr for SIGIL II) are not on the discs: the only SIGIL music supplied was the OPL soundtrack video, so its CD tracks and streamed songs sound like FM synth music. SIGIL II's songs are its MIDIs played through an OPL3 emulator with DOOM's instruments, the same kind of sound. Give the build other WAVs (`data/sigil_cdda/Track02-23.wav`) to change that.
@@ -150,7 +152,7 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   the 4 MB board's save area; on 16 MB, SIGIL.WAD and SIGIL_II.WAD are preloaded.
 - Levels: E5M1-5, E5M8, E5M9 and E6M2-4, E6M8, E6M9. E5M6, E5M7, E6M5, E6M6 and E6M7 are too big
   for the 32X's RAM; E6M1 fits (add it to `ROMMAPS`, `ROMBUDGET=30`) but plays badly: about 10 fps
-  and its many far-off enemies shoot from the darkness.
+  and its many far-off enemies shoot from the darkness (README "Why six SIGIL levels are left out").
 - `ROMMAPS`: the maps too big to load from the CD run from the game's ROM image in the cart
   (`tools/make_rommaps.py`): their read-only parts are used in place.
 - `ROMBUDGET=64`: KB of each ROM map's own textures (more = fewer look-alike textures; with E6M1
@@ -167,8 +169,10 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   far less often).
 - `NOIDLE=1`: leaves out the pauses in the SH2 wait loops (both discs; on by default; see
   "Frame rate").
-- SIGIL II's intermission / level loading picture: `data/sigil/Sigil2_4.jpg` (320 x 224) when it's
-  there, else `Sigil2_3.jpg`, else SIGIL's `sigil-wallpaper_1.jpg`.
+- The pictures (`data/sigil/`, the first that exists): the titles `sigil.jpg` / `Sigil2.jpg` (else
+  `<name>_1.jpg`, `.png`, the `.webp` from the download); SIGIL II's intermission / level loading
+  picture `Sigil2_4.jpg`, else `Sigil2_3.jpg` (320 x 224); SIGIL's `sigil-wallpaper.jpg`, else
+  `sigil-wallpaper_1.jpg`.
 - Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
   music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
   song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
@@ -197,10 +201,28 @@ python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL I
 **Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
 Fusion), part of it in stack space the game never reaches.
 
-**Options:** `NAME=<name>` the disc's name; `MUSIC=sigil` the SIGIL disc's CD audio; `FIRE=0` no
-title fire; `HIRES=0` PLUTONIA without the texture pack; `CUT="..."` the Fusion files left off
-(`CUT=""` keeps all); `IDKFA=<cue>` the IDKFA disc image; `PLUT_BUDGETS=<file>` Plutonia's texture
-budgets; `SIGILCDDA=<folder>` other SIGIL CD audio tracks.
+**Every switch** (put it in front of `./build.sh`, as in the commands above):
+
+| Switch | Disc | What it does |
+|---|---|---|
+| `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
+| `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
+| `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
+| `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
+| `SIGILONLY=1` | SIGIL | only SIGIL and SIGIL II on the disc (DOOM and the others left off: room for the ROM maps' textures) |
+| `ROMMAPS="E5M4 ..."` | SIGIL | the maps that run from the game's ROM image (too big to load from the CD) |
+| `ROMBUDGET=64` | SIGIL | KB of each ROM map's own textures (default 64) |
+| `ROMBUDGETS="E6M8=96"` | SIGIL | a ROM map's own texture budget instead of `ROMBUDGET` |
+| `NOREJECT=1` | SIGIL | the ROM maps without their sight (reject) tables: room in the ROM |
+| `DRAWDIST=far` | SIGIL | the farther draw distance (darkness beyond 1536 units from 190 walls a frame, instead of 1024 from 150) |
+| `NOIDLE=1` | both | no pauses in the SH2 wait loops ("Frame rate") |
+| `FIRE=0` | both | no title fire (Resurrection's) |
+| `HIRES=0` | DOOM | PLUTONIA without the 1K texture pack |
+| `PLUT_BUDGETS=<file>` | DOOM | PLUTONIA's per-map texture budgets (default `tools/plutonia_budgets.txt`) |
+| `CUT="..."` | both | the Fusion disc files left off (`CUT=""` keeps all) |
+| `IDKFA=<cue>` | DOOM | the IDKFA soundtrack disc image (default: the `.cue` in "DOOM CD32X FUSION V3 with IDKFA Soundtrack") |
+| `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
+| `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
 `TEST_STATS=1` the renderer's counters (walls, floor / ceiling areas, stack depth) for an ares RAM
@@ -223,6 +245,32 @@ timing screen on from the start (in a disc you play: Options + MODE; its times r
 | `fit_4mb.py` | cuts the game to its used size (SIGIL disc, `CART4=1` DOOM disc), so it runs on the 4 MB board beside the save area |
 | `make_cart4.py` | `CART4=1`: Fusion's IWAD 66 KB smaller for the 4 MB cart (unused textures/flats stubbed, 13 walls in 4-bit) |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
+
+## Why six SIGIL levels are left out
+The 32X has 256 KB of RAM. D32XR keeps a level in a 210 KB memory pool (the zone); a map loaded
+from the CD needs its whole level data there, about 175 KB at most with its textures. Five SIGIL
+maps are bigger than that, so they run as ROM maps (`ROMMAPS`): their vertexes, segs, nodes, reject
+and blockmap are used in place from the cart. Even so, a map's lines, sides, sectors, subsectors
+and its things (every monster and item becomes a 32X object) must be built in RAM. The six left out
+are the biggest in those (counts from the WADs; for comparison the largest maps on the disc):
+
+| Map | Level data | Things | Lines | Sides | Sectors | Subsectors | Result in ares |
+|---|---|---|---|---|---|---|---|
+| E5M6 Unspeakable Persecution | 325 KB | 436 | 4830 | 8450 | 538 | 3573 | `Z_Malloc: failed on 11720` while loading |
+| E5M7 Nightmare Underworld | 387 KB | 520 | 5629 | 8999 | 837 | 4217 | `Z_Malloc: failed on 17980` |
+| E6M5 Wrathful Reckoning | 319 KB | 414 | 4720 | 7885 | 705 | 3293 | `Z_Malloc: failed on 9704` |
+| E6M6 Vengeance Unleashed | 337 KB | 508 | 4887 | 8331 | 483 | 3820 | `Z_Malloc: failed on 14296` |
+| E6M7 Descent Into Terror | 351 KB | 647 | 4953 | 8223 | 725 | 3366 | `Z_Malloc: failed on 20092` |
+| E6M1 Cursed Darkness | 319 KB | 284 | 4461 | 7990 | 402 | 4049 | loads (as a ROM map), but about 10 fps, and far-off enemies shoot from the darkness: left out by choice |
+| *E5M4 (on the disc)* | 301 KB | 375 | 4427 | 6805 | 579 | 3184 | plays |
+| *E6M4 (on the disc)* | 306 KB | 264 | 4443 | 7595 | 483 | 3788 | plays |
+
+When one of the five loads, the zone fills with about 180 KB of level data and the next 10-20 KB
+request fails: they would need 10-20 KB more RAM than the 32X has for them. The zone can't give it
+(taking 11 KB from it already broke the big SIGIL II maps that do fit), the 16 MB cart doesn't
+help (it adds cart space, not RAM), and the rest of the 32X's RAM is the program, the frame
+buffers' work area and the stacks. E6M1 can be put back with `ROMMAPS="E5M4 E5M5 E5M9 E6M1 E6M4
+E6M8" ROMBUDGET=30` (it still fits the 4 MB board).
 
 ## Frame rate
 The two SH2s share one bus, and the main SH2 has priority. A wait loop that reads a register or a
