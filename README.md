@@ -215,6 +215,26 @@ python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL I
   IWAD): the ROM-map loader, the draw distance (far open lines drawn as darkness in busy views)
   and the black clear after a frame that ran out of walls.
 
+**2b. The SIGIL 32X+CD cartridge** (`CART=1`: SIGIL and SIGIL II for a flash cart, with the SIGIL
+disc in the Sega CD):
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+CART=1 ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+```
+
+- The same command as the SIGIL disc plus `CART=1`. It makes the disc as before and also
+  `discs/<NAME>/<NAME>_32XCD.32x`: the cartridge ROM (4 MB) for a flash cart on the 32X.
+- Play it as a 32X+CD game, the way Fusion itself runs: the cartridge in the 32X, **this SIGIL disc**
+  in the Sega CD. The game boots from the cart (no RAM cart, no copying), and reads SIGIL.WAD,
+  SIGIL_II.WAD, SOUNDS.WAD and the CD audio from the disc. The same disc still boots by itself as
+  the CD32X disc into a RAM cart.
+- The same game: the same 12 levels (E6M1 left out), the ROM maps, the draw distance, the pauses,
+  the silent loading screens, the pictures. Only the 68000 side differs: it is built in D32XR's own
+  cartridge mode (`tools/build_game.sh CART=1`: Mega CD mode 1, as upstream D32XR and Fusion), so
+  saves go to the flash cart's save RAM.
+- In ares: load the `.32x` as a Mega 32X cartridge and give it the disc when it asks for the CD.
+
 **3. Variants of the SIGIL disc:**
 
 | Want | Change the SIGIL command |
@@ -230,6 +250,7 @@ Fusion), part of it in stack space the game never reaches.
 | Switch | Disc | What it does |
 |---|---|---|
 | `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
+| `CART=1` | SIGIL | also the 32X+CD cartridge ROM `discs/<name>/<name>_32XCD.32x` (2b) |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
