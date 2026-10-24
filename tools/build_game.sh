@@ -22,7 +22,7 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 [ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_ROMMAPS 1' "$B/p_setup.c"
 # and the draw distance (far lines as darkness in busy views, r_phase1.c / r_phase6.c): the SIGIL
 # disc's maps need it; on the DOOM disc the program has no room for it beside Fusion's IWAD
-[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c"
+[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c" "$B/r_main.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
 [ -n "${PRELOAD_H:-}" ] && cp "$PRELOAD_H" "$B/src-md/cd32x_preload.h"
 # CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the

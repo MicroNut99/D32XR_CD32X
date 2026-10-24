@@ -14,6 +14,9 @@ static unsigned short r_open_out[R_OPEN_OUT][SCREENWIDTH+4] __attribute__((align
 #ifdef R_STATS
 int r_stat[10], r_stat_frame[2];		/* TEST_STATS: see R_RenderPlayerView */
 #endif
+#ifdef CD32X_DARKFAR
+static boolean r_wall_overflow;	/* the last frame had MAXWALLCMDS walls: R_Setup clears the view */
+#endif
 
 int16_t viewportWidth, viewportHeight;
 int16_t centerX, centerY;
@@ -834,6 +837,21 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	}
 
 	viewportbuffer = (pixel_t*)I_ViewportBuffer();
+#ifdef CD32X_DARKFAR
+	if (r_wall_overflow)
+	{
+		/* the last frame ran out of walls (MAXWALLCMDS): what this one cannot draw stays black
+		   instead of showing the frame before last (flashing) */
+		int y, n = viewportWidth * (lowres ? 2 : 1) / 2;
+		uint16_t *row = (uint16_t *)viewportbuffer;
+		for (y = 0; y < viewportHeight; y++, row += 320 / 2)
+		{
+			uint16_t *p = row, *e = row + n;
+			while (p < e)
+				*p++ = 0;
+		}
+	}
+#endif
 
 	palette = 0;
 
@@ -1160,6 +1178,10 @@ void R_RenderPlayerView(int displayplayer)
 	t_bsp = I_GetFRTCounter() - t_bsp;
 
 	Mars_R_EndWallPrep();
+#ifdef CD32X_DARKFAR
+	Mars_ClearCacheLine(&vd->lastwallcmd);
+	r_wall_overflow = vd->lastwallcmd - vd->viswalls >= MAXWALLCMDS;
+#endif
 #ifdef R_STATS
 	Mars_ClearCacheLine(&vd->lastwallcmd);
 	r_stat_frame[0] = vd->lastwallcmd - vd->viswalls;
