@@ -190,9 +190,13 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   "Frame rate").
 - The pictures (`data/sigil/`, the first that exists): the titles `sigil.jpg` / `Sigil2.jpg` (else
   `<name>_1.jpg`, `.png`, the `.webp` from the download); the intermission / level loading picture
-  of both: `sigil-wallpaper.jpg` (the goat, full screen), else `sigil-wallpaper_1.jpg`.
+  of both: `art/sigil-wallpaper.jpg` (the goat, full screen; in the repository, not `data/`).
   `SIGILPIC=<file>` puts another picture there for both; `SIGILPIC=lump:SIGILINT` or
   `lump:SIGILIN2` a WAD's own art (SIGIL II's is widescreen: its 4:3 middle).
+- SIGIL II's lion-head switch (SW1LION / SW2LION, E6M8's start pillars) shows the goat from
+  `art/sigil-wallpaper.jpg` (its middle strip, 64 x 128; `tools/make_game.py --tex-image`) instead
+  of DOOM's lion. `SIGILPILLAR=0` keeps the lion. In E6M2 and E6M3 (no room for their own textures)
+  the switch stays the base game's skull switch.
 - Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
   music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
   song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
@@ -242,7 +246,8 @@ Fusion), part of it in stack space the game never reaches.
 | `CUT="..."` | both | the Fusion disc files left off (`CUT=""` keeps all) |
 | `IDKFA=<cue>` | DOOM | the IDKFA soundtrack disc image (default: the `.cue` in "DOOM CD32X FUSION V3 with IDKFA Soundtrack") |
 | `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
-| `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `data/sigil/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
+| `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `art/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
+| `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
 | `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;

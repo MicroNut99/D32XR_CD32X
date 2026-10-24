@@ -335,6 +335,26 @@ class Converter:
             die('%s is not a Doom II-format IWAD' % args.pc)
         self.base = Base(args.base)
         self.pal = Palette(self.pc.pal)
+        # --tex-image NAME[,NAME]=file[@x0,y0,x1,y1]: those textures' pictures from part of an image
+        # (fractions of its width / height; default the whole image), in the PWAD's palette - e.g.
+        # SIGIL II's lion-head switch as the Baphomet goat (build.sh)
+        for spec in self.args.tex_image or []:
+            names, src = spec.split('=', 1)
+            box = None
+            if '@' in src:
+                src, b = src.rsplit('@', 1)
+                box = [float(v) for v in b.split(',')]
+            from PIL import Image
+            im = Image.open(src).convert('RGB')
+            if box:
+                iw, ih = im.size
+                im = im.crop((int(box[0] * iw), int(box[1] * ih), int(box[2] * iw), int(box[3] * ih)))
+            for n in names.upper().split(','):
+                if n not in self.pc.tex:
+                    die('--tex-image: no texture %s' % n)
+                w, h = self.pc.tex[n][0], self.pc.tex[n][1]
+                idx = to_palette(area_resize_linear(im, w, h), self.pal).astype(np.uint8)
+                self.pc._cache[n] = (w, h, idx.tobytes(), bytes([1]) * (w * h))
         self.pack = Pack(args.hires) if args.hires else None
         self.fusion = args.fusion
         self.budget = args.budget * 1024
@@ -1139,6 +1159,8 @@ def main():
     ap.add_argument('--game', choices=('plutonia', 'sigil', 'sigil2'), default='plutonia')
     ap.add_argument('--pc', required=True, nargs='+', help='the PC IWAD (and PWADs on top)')
     ap.add_argument('--title', help='SIGIL: the title picture')
+    ap.add_argument('--tex-image', action='append', help='NAME[,NAME]=file[@x0,y0,x1,y1]: textures drawn '
+                    'from (part of) a picture')
     ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture (a file, or lump:NAME '
                     'for a picture in the PWAD)')
     ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',

@@ -86,16 +86,19 @@ for G in sigil sigil2; do
   SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
   # the pictures: the title <name>.jpg, else <name>_1.jpg, .png, the .webp from the SIGIL download
-  # (the first that exists); the tally / loading background of both: sigil-wallpaper.jpg (else
-  # sigil-wallpaper_1.jpg); SIGILPIC=<file> another picture for both (lump:SIGILINT / lump:SIGILIN2:
-  # a WAD's own art)
+  # (the first that exists); the tally / loading background of both: art/sigil-wallpaper.jpg (in
+  # the repository); SIGILPIC=<file> another picture for both (lump:SIGILINT / lump:SIGILIN2: a WAD's
+  # own art). SIGIL II's lion-head switch (SW1LION / SW2LION: E6M8's start pillar) shows the goat
+  # from that picture (its middle strip); SIGILPILLAR=0 keeps the lion
   PIC="$(first_of "$DATA/sigil/$PIC.jpg" "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp")"
-  WALL="$(first_of "$DATA/sigil/sigil-wallpaper.jpg" "$DATA/sigil/sigil-wallpaper_1.jpg")"
+  WALL="$HERE/art/sigil-wallpaper.jpg"
+  TEXIMG=""; [ $G = sigil2 ] && [ "${SIGILPILLAR:-1}" != 0 ] \
+    && TEXIMG="--tex-image SW1LION,SW2LION=$HERE/art/sigil-wallpaper.jpg@0.288,0.05,0.71,0.888"
   [ -n "${SIGILPIC:-}" ] && WALL="$SIGILPIC"
   echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
   ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}${ROMBUDGETS:+ --rom-budgets ${ROMBUDGETS// /,}}"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
-          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $SMUS $ROMOPT \
+          --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $TEXIMG $SMUS $ROMOPT \
           --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
     || { tail -20 "$HERE/build/${G}_log.txt"; echo "*** $OUTW failed"; exit 1; }
   tail -1 "$HERE/build/${G}_log.txt"
