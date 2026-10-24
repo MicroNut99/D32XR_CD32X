@@ -602,7 +602,7 @@ void R_Sprites(void)
    }
 
 #ifdef MARS
-   Mars_R_SecWait();
+   Mars_R_SecWaitPause();
    for (i = 0; i < count+1; i++)
       vd->gsortedsprites[i] = sortedsprites[i];
 #endif

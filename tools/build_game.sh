@@ -23,9 +23,9 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # and the draw distance (far lines as darkness in busy views, r_phase1.c / r_phase6.c): the SIGIL
 # disc's maps need it; on the DOOM disc the program has no room for it beside Fusion's IWAD
 [ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c" "$B/r_main.c"
-# the SIGIL disc's speed-up (README "Frame rate"; the DOOM disc has no room for it): pauses in the
-# wait loops of the two SH2s (doomdef.h CD32X_PAUSE; off: NOIDLE=1)
-[ -n "${ROMMAPS:-}" ] && [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h"
+# pauses in the wait loops of the two SH2s, both discs (README "Frame rate"; doomdef.h CD32X_PAUSE;
+# off: NOIDLE=1; only with CD32X=1, so the plain Fusion build stays the release's)
+case " $* " in *" CD32X=1 "*) [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h" ;; esac
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)

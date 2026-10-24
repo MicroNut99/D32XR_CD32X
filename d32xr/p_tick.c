@@ -556,7 +556,7 @@ void P_Drawer (void)
 
 	ST_Drawer();
 
-	Mars_R_SecWait();
+	Mars_R_SecWaitPause();
 
 	if (automapactive)
 		AM_Drawer();

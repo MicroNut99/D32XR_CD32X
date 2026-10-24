@@ -552,7 +552,7 @@ void R_DrawPlanes(void)
     else
     {
         // the secondary CPU is already on it, take our hands off the bus
-        Mars_R_SecWait();
+        Mars_R_SecWaitPause();
     }
 
     Mars_R_BeginDrawPlanes();
