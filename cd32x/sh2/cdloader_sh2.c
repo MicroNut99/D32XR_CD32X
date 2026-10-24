@@ -404,8 +404,15 @@ static uint32_t sum_add(uint32_t s, const volatile uint32_t *p, uint32_t len) {
 static uint32_t rom_sum(void) {
     uint32_t s;
     cart_page(CDL_D32XR_PAGE);
+#if PL_ROM_LENGTH <= 0x200000
+    /* a game image of 2 MB or less (fit_4mb.py cuts it to its used length): window 0 only - the
+       second part's length would wrap around to about 4 GB */
+    (void)s;
+    return sum_add(0, (const volatile uint32_t *)0x22000000, PL_ROM_LENGTH);
+#else
     s = sum_add(0, (const volatile uint32_t *)0x22000000, 0x200000);
     return sum_add(s, CART_W1, PL_ROM_LENGTH - 0x200000);
+#endif
 }
 static uint32_t file_sum(int f) {
     uint32_t s = 0, done = 0, len = pl_files[f].length, lin = pl_files[f].linear;

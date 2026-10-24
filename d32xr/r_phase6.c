@@ -69,6 +69,13 @@ static void R_LockSeg(void) ATTR_DATA_CACHE_ALIGN;
 static void R_UnlockSeg(void) ATTR_DATA_CACHE_ALIGN;
 void R_SegCommands(void) ATTR_DATA_CACHE_ALIGN __attribute__((noinline));
 
+#ifdef MARS
+/* COMM6 holds the walls' counters as bytes: the BSP walk's added count (int8_t, -2 = the walk is
+   done, -1 = drawing is done) and the ready count (uint8_t) - more walls than 253 would read as
+   those markers (TEST_WALLS) */
+_Static_assert(MAXWALLCMDS <= 253, "MAXWALLCMDS: the wall counters in COMM6 are bytes");
+#endif
+
 //
 // Render a wall texture as columns
 //
