@@ -190,8 +190,9 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 
   "Frame rate").
 - The pictures (`data/sigil/`, the first that exists): the titles `sigil.jpg` / `Sigil2.jpg` (else
   `<name>_1.jpg`, `.png`, the `.webp` from the download); the intermission / level loading picture
-  is each WAD's own art: SIGIL's SIGILINT, SIGIL II's SIGILIN2 (widescreen 446 x 200: its 4:3
-  middle, as on a 4:3 DOOM). `SIGILPIC=<file>` puts another picture there for both.
+  of both: `sigil-wallpaper.jpg` (the goat, full screen), else `sigil-wallpaper_1.jpg`.
+  `SIGILPIC=<file>` puts another picture there for both; `SIGILPIC=lump:SIGILINT` or
+  `lump:SIGILIN2` a WAD's own art (SIGIL II's is widescreen: its 4:3 middle).
 - Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
   music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
   song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
@@ -241,7 +242,7 @@ Fusion), part of it in stack space the game never reaches.
 | `CUT="..."` | both | the Fusion disc files left off (`CUT=""` keeps all) |
 | `IDKFA=<cue>` | DOOM | the IDKFA soundtrack disc image (default: the `.cue` in "DOOM CD32X FUSION V3 with IDKFA Soundtrack") |
 | `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
-| `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: their own SIGILINT / SIGILIN2) |
+| `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `data/sigil/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
 | `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;

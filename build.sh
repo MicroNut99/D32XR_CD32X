@@ -86,10 +86,11 @@ for G in sigil sigil2; do
   SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
   # the pictures: the title <name>.jpg, else <name>_1.jpg, .png, the .webp from the SIGIL download
-  # (the first that exists); the tally / loading background: the WAD's own art - SIGIL's SIGILINT,
-  # SIGIL II's SIGILIN2 (its 4:3 middle); SIGILPIC=<file> another picture for both
+  # (the first that exists); the tally / loading background of both: sigil-wallpaper.jpg (else
+  # sigil-wallpaper_1.jpg); SIGILPIC=<file> another picture for both (lump:SIGILINT / lump:SIGILIN2:
+  # a WAD's own art)
   PIC="$(first_of "$DATA/sigil/$PIC.jpg" "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp")"
-  WALL="lump:SIGILINT"; [ $G = sigil2 ] && WALL="lump:SIGILIN2"
+  WALL="$(first_of "$DATA/sigil/sigil-wallpaper.jpg" "$DATA/sigil/sigil-wallpaper_1.jpg")"
   [ -n "${SIGILPIC:-}" ] && WALL="$SIGILPIC"
   echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
   ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}${ROMBUDGETS:+ --rom-budgets ${ROMBUDGETS// /,}}"
