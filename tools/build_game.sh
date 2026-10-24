@@ -23,6 +23,18 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # and the draw distance (far lines as darkness in busy views, r_phase1.c / r_phase6.c): the SIGIL
 # disc's maps need it; on the DOOM disc the program has no room for it beside Fusion's IWAD
 [ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c" "$B/r_main.c"
+# the SIGIL disc's speed-ups (README "Frame rate"; the DOOM disc has no room for them):
+# - pauses in the wait loops of the two SH2s (doomdef.h CD32X_PAUSE; off: NOIDLE=1)
+[ -n "${ROMMAPS:-}" ] && [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h"
+# - the renderer's code in the cart built for speed (-O2) instead of size (-Os) (off: NOO2=1); its
+#   code in the 32X's SDRAM (ATTR_DATA_CACHE_ALIGN) stays -Os: -O2 there takes 4 KB of the SDRAM,
+#   and the main SH2's stack needs it
+[ -n "${ROMMAPS:-}" ] && [ -z "${NOO2:-}" ] && for f in "$B"/r_main.c "$B"/r_phase*.c; do
+  sed -i '1i #pragma GCC optimize ("O2")' "$f"; done
+# TEST_O2SDRAM=1: emulator testing only - the renderer's SDRAM code at -O2 too (4 KB more SDRAM: the
+# main SH2's stack room drops below its measured depth)
+[ -n "${TEST_O2SDRAM:-}" ] && for f in "$B"/r_main.c "$B"/r_phase*.c; do sed -i '1i #define CD32X_O2_SDRAM 1' "$f"; done && \
+  sed -i 's|^#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("Os")))$|#ifdef CD32X_O2_SDRAM\n#define ATTR_DATA_CACHE_ALIGN __attribute__((section(".sdata"), optimize("O2")))\n#else\n&\n#endif|' "$B/doomdef.h"
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)

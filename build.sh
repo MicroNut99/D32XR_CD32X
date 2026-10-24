@@ -84,9 +84,11 @@ for G in sigil sigil2; do
   SMUS="--music spcm"; [ "$MUSIC" = sigil ] && SMUS="--music cd --cdtrack $CDT"
   [ -f "$DATA/sigil/$PW" ] && [ -f "$DATA/doom.wad" ] || continue
   # the pictures: your <name>_1.jpg / .jpg first (newart: <name>_1.jpg made at 320 x 224), else the .webp from the SIGIL download; the tally
-  # background: sigil-wallpaper_1.jpg (made at 320 x 224: used as it is), else sigil-wallpaper.jpg
+  # background: sigil-wallpaper_1.jpg (made at 320 x 224: used as it is), else sigil-wallpaper.jpg;
+  # SIGIL II's own: Sigil2_3.jpg (320 x 224) when it's there
   PIC="$(ls "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp" 2>/dev/null | head -1)"
-  WALL="$(ls "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
+  WALL2=""; [ $G = sigil2 ] && WALL2="$DATA/sigil/Sigil2_3.jpg"
+  WALL="$(ls ${WALL2:+"$WALL2"} "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
   echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
   ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}${ROMBUDGETS:+ --rom-budgets ${ROMBUDGETS// /,}}"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \

@@ -394,6 +394,8 @@ void Mars_Sec_R_WallPrep(void)
         else
         {
             last = first + (uint8_t)nextsegs;
+            if (segl >= last)
+                CD32X_PAUSE(CD32X_PAUSE_SHORT);	/* caught up with the BSP walk */
         }
 
         for (; segl < last; segl++)

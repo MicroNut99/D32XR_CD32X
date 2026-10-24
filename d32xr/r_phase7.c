@@ -261,7 +261,7 @@ static int R_TryLockPln(void)
 
 static void R_LockPln(void)
 {
-    while (!R_TryLockPln());
+    while (!R_TryLockPln()) CD32X_PAUSE(CD32X_PAUSE_SHORT);
 }
 
 static void R_UnlockPln(void)

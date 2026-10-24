@@ -79,7 +79,7 @@ int Mars_PlayRoQ(const char *fn, void *mem, size_t size, int allowpause, void (*
 
 void Mars_Sec_AM_Drawer(void);
 
-#define Mars_R_SecWait() do { while (MARS_SYS_COMM4 != MARS_SECCMD_NONE); } while(0)
+#define Mars_R_SecWait() do { while (MARS_SYS_COMM4 != MARS_SECCMD_NONE) CD32X_PAUSE(CD32X_PAUSE_LONG); } while(0)
 
 static inline void Mars_CommSlaveClearCache(void)
 {
@@ -171,26 +171,26 @@ static inline void Mars_AM_EndDrawer(void)
 
 static inline void Mars_P_BeginCheckSights(void)
 {
-	while (MARS_SYS_COMM4 != 0) {};
+	while (MARS_SYS_COMM4 != 0) CD32X_PAUSE(CD32X_PAUSE_LONG);
 	MARS_SYS_COMM6 = 0;
 	MARS_SYS_COMM4 = MARS_SECCMD_P_SIGHT_CHECKS;
 }
 
 static inline void Mars_P_EndCheckSights(void)
 {
-	while (MARS_SYS_COMM4 != 0);
+	while (MARS_SYS_COMM4 != 0) CD32X_PAUSE(CD32X_PAUSE_LONG);
 }
 
 static inline void Mars_melt_BeginWipe(void)
 {
-	while (MARS_SYS_COMM4 != 0) {};
+	while (MARS_SYS_COMM4 != 0) CD32X_PAUSE(CD32X_PAUSE_LONG);
 	MARS_SYS_COMM6 = 0;
 	MARS_SYS_COMM4 = MARS_SECCMD_MELT_DO_WIPE;
 }
 
 static inline void Mars_melt_EndWipe(void)
 {
-	while (MARS_SYS_COMM4 != 0);
+	while (MARS_SYS_COMM4 != 0) CD32X_PAUSE(CD32X_PAUSE_LONG);
 }
 
 #endif 

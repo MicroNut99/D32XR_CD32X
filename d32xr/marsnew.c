@@ -357,7 +357,7 @@ void Mars_Secondary(void)
 		int cmd;
 		extern VINT *validcount;
 
-		while ((cmd = MARS_SYS_COMM4) == MARS_SECCMD_NONE);
+		while ((cmd = MARS_SYS_COMM4) == MARS_SECCMD_NONE) CD32X_PAUSE(CD32X_PAUSE_LONG);
 
 		switch (cmd) {
 		case MARS_SECCMD_CLEAR_CACHE:

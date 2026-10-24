@@ -328,6 +328,7 @@ static void R_DrawSegSky(seglocal_t* lseg, unsigned short *restrict clipbounds)
 static void R_LockSeg(void)
 {
     while (atomic_flag_test_and_set(&seg_lock)) {
+        CD32X_PAUSE(CD32X_PAUSE_SHORT);
     }
 }
 
@@ -439,7 +440,7 @@ void R_SegCommands(void)
         if (*addedsegs == -1)
             return; // the other cpu is done drawing segments, so should we
         while (*readysegs <= i)
-            continue;
+            CD32X_PAUSE(CD32X_PAUSE_SHORT);
 #endif
 
 #ifdef MARS
