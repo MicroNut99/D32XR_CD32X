@@ -147,7 +147,7 @@ python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D
 # booting from the cart and reading this disc's WADs and CD audio (the 68000 side in cartridge mode)
 if [ -n "${CART:-}" ]; then
   echo "==> the 32X+CD cartridge"
-  CART=1 DRAWDIST="${DRAWDIST:-}" ROMMAPS="$ROMMAPS" IWAD="$IWAD" CDONLY="$CDONLY" \
+  CART=1 TITLE="SIGIL 32X" VERSION="1.0" DRAWDIST="${DRAWDIST:-}" ROMMAPS="$ROMMAPS" IWAD="$IWAD" CDONLY="$CDONLY" \
     bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_32XCD.32x" CD32X=1
 fi
 echo "==> loading screen"
@@ -201,7 +201,9 @@ SECTORS=$(( $(stat -c %s "$NAME.bin") / 2352 ))
 printf "    the disc: %d sectors = %d:%02d of an 80:00 CD\n" $SECTORS $((SECTORS / 4500)) $((SECTORS % 4500 / 75))
 [ $SECTORS -le 359849 ] || echo "*** WARNING: longer than an 80-minute CD ($SECTORS > 359849 sectors)"
 mkdir -p "$HERE/discs/$NAME" && mv -f "$NAME.bin" "$NAME.cue" "$HERE/discs/$NAME/"
-[ -n "${CART:-}" ] && cp "$HERE/build/D32XR_32XCD.32x" "$HERE/discs/$NAME/${NAME}_32XCD.32x" \
-  && echo "==> the 32X+CD cartridge: discs/$NAME/${NAME}_32XCD.32x (with this disc in the Sega CD)"
+# the cartridge ROM beside the disc: CARTNAME (default SIGIL32X) + .32x - with NAME=SIGIL32X_CD the
+# pair is SIGIL32X.32x + SIGIL32X_CD.cue / .bin (as OpenTyrian's TYRIAN32X.32x + TYRIAN32X_CD)
+[ -n "${CART:-}" ] && cp "$HERE/build/D32XR_32XCD.32x" "$HERE/discs/$NAME/${CARTNAME:-SIGIL32X}.32x" \
+  && echo "==> the 32X+CD cartridge: discs/$NAME/${CARTNAME:-SIGIL32X}.32x (with $NAME.cue in the Sega CD)"
 echo
 echo "==> done: discs/$NAME/$NAME.cue (with its .bin)"

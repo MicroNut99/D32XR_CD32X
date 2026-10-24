@@ -95,7 +95,30 @@ Also:
 
 ## What you need
 
-- Sega CD + 32X, the **16 MB RAM cart** (the 16MB-PCB-CD32X board; 8 MB works without the preload).
+### To play
+
+**The DOOM disc** (CD32X):
+- A Mega Drive / Genesis with a **32X**, a **Sega CD** and a **RAM cart**: 16 MB (with the preload) or
+  8 MB; on the 4 MB cart the `CART4=1` build.
+- The disc image: `D32XR_CD32X_IDKFA.cue` + `.bin` (always load the `.cue`). The disc boots and copies
+  the game into the RAM cart.
+
+**The SIGIL disc** (CD32X):
+- A Mega Drive / Genesis with a **32X**, a **Sega CD** and a **RAM cart** (4, 8 or 16 MB).
+- The disc image: `D32XR_CD32X_SIGIL.cue` + `.bin` (always load the `.cue`).
+
+**SIGIL 32X+CD** (cartridge + disc):
+- A Mega Drive / Genesis with a **32X** and a **Sega CD**, and a flash cart for the 32X (or an
+  emulator that runs a 32X cartridge together with a Sega CD image, such as ares).
+- The cartridge ROM: `SIGIL32X.32x`
+- The disc image: `SIGIL32X_CD.cue` + `SIGIL32X_CD.bin` (always load the `.cue`)
+
+The cartridge and the CD are used together (Sega CD "Mode 1"): the game boots from the cartridge,
+the Sega CD supplies the WADs and the music. No RAM cart.
+
+### To build
+
+- The tools in "Building" (WSL / Linux).
 - In the project's `data/` folder (never committed):
 
 | File | Use |
@@ -105,8 +128,9 @@ Also:
 | `data/splash.png` | the loading screen picture (the DOOM logo) |
 | `data/plutonia.wad`, `data/hires/*.pk3` | PLUTONIA (optional; the 1K texture pack optional) |
 | `data/doom.wad`, `data/sigil/sigil.wad`, `data/sigil/sigil2.wad` | SIGIL, SIGIL II (optional) |
-| `data/sigil/sigil.jpg`, `Sigil2_1.jpg`, `sigil-wallpaper_1.jpg` | their title and tally pictures (else `sigil.webp`, `Sigil2.webp`, `sigil-wallpaper.jpg`) |
-| `data/sigil_cdda/Track02-23.wav` | SIGIL's and SIGIL II's 22 songs: the SIGIL disc's CD tracks, and the source of the IDKFA disc's streamed songs (`tools/make_sigil_cdda.sh` makes them) |
+| `data/sigil/sigil.jpg`, `Sigil2.jpg` | their title pictures (else `<name>_1.jpg`, `.png`, the `.webp` from the download); the tally / loading picture is `art/sigil-wallpaper.jpg` in the repository |
+| `data/sigil_albums/Track02-23.wav` | the SIGIL disc's CD audio: Buckethead's and THORR's albums (`tools/make_sigil_albums.py` makes them, see "Building") |
+| `data/sigil_cdda/Track02-23.wav` | the OPL renders of SIGIL's songs: the SIGIL disc's CD audio without `data/sigil_albums`, and the IDKFA disc's streamed songs (`tools/make_sigil_cdda.sh` makes them) |
 | `DOOM CD32X FUSION V3 with IDKFA Soundtrack/*.cue` + `.bin` (project folder) | the IDKFA disc's CD audio (`IDKFA=<cue>` for another place), else `data/music/Track02.wav ...`, else one silent track |
 
 ## Building
@@ -220,11 +244,13 @@ disc in the Sega CD):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART=1 ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+CART=1 ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=SIGIL32X_CD ./build.sh 2>&1 | tee build_log.txt
 ```
 
-- The same command as the SIGIL disc plus `CART=1`. It makes the disc as before and also
-  `discs/<NAME>/<NAME>_32XCD.32x`: the cartridge ROM (4 MB) for a flash cart on the 32X.
+- The SIGIL disc's command plus `CART=1` and `NAME=SIGIL32X_CD`. In `discs/SIGIL32X_CD/`:
+  `SIGIL32X.32x`, the cartridge ROM (4 MB) for a flash cart on the 32X, and `SIGIL32X_CD.cue` +
+  `.bin`, the disc (the same as the SIGIL disc; named as OpenTyrian's `TYRIAN32X.32x` +
+  `TYRIAN32X_CD`). `CARTNAME=<name>` names the ROM otherwise.
 - Play it as a 32X+CD game, the way Fusion itself runs: the cartridge in the 32X, **this SIGIL disc**
   in the Sega CD. The game boots from the cart (no RAM cart, no copying), and reads SIGIL.WAD,
   SIGIL_II.WAD, SOUNDS.WAD and the CD audio from the disc. The same disc still boots by itself as
@@ -250,7 +276,8 @@ Fusion), part of it in stack space the game never reaches.
 | Switch | Disc | What it does |
 |---|---|---|
 | `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
-| `CART=1` | SIGIL | also the 32X+CD cartridge ROM `discs/<name>/<name>_32XCD.32x` (2b) |
+| `CART=1` | SIGIL | also the 32X+CD cartridge ROM `discs/<name>/SIGIL32X.32x` (2b) |
+| `CARTNAME=<name>` | SIGIL | the cartridge ROM's name with `CART=1` (default `SIGIL32X`) |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
