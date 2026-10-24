@@ -1,11 +1,30 @@
 # D32XR CD32X: DOOM CD32X Fusion from the CD
 
-DOOM CD32X Fusion v3.0 on **Sega CD + 32X + the 8 / 16 MB RAM cart**, booted from a CD. No flash cart is needed.
+DOOM CD32X Fusion v3.0 on **Sega CD + 32X + a 4 / 8 / 16 MB RAM cart**, booted from a CD. No flash cart is needed.
 
 1. The disc boots, and the loader copies the game (and, on the 16 MB cart, the main WADs) into the RAM cart.
 2. D32XR starts from the cart with all of Fusion's own features (the FMV intro, the game select menu, the WADs, music and sound effects through the Sega CD) and the additions below.
 
 The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source (viciious/d32xr, tag `fusion_v3.0`, the same commit as v3.5). Built without the CD32X changes, it comes out byte for byte the Fusion ROM; only the build date in the header differs.
+
+## Cart features
+
+- **Fast load.** The first boot copies the game into the RAM cart (and, on the 16 MB cart, the main
+  WADs: SOUNDS, DOOM, DOOM II, RESURRECTION, or SIGIL and SIGIL II). That takes a few minutes, behind
+  **FIRST TIME: COPYING DOOM INTO THE RAM CART** and a gold bar. Every later boot checks the cart
+  with checksums and, when everything matches, starts the game straight away, copying nothing. Only
+  what changed is copied again (after switching discs: the other disc's game).
+- **Preloaded WADs (16 MB cart).** The game reads them from the cart instead of the CD: the same
+  bytes, no seeking, so levels load faster. On 4 and 8 MB the WADs are read from the CD.
+- **A + B + C reset.** Hold **A + B + C** while the disc boots to copy everything into the cart again,
+  checked or not (if the cart's contents are ever damaged, or another title used those pages).
+- **Saves on the cart.** Games save in the cart's shared save area (piece 11), battery-backed, kept
+  across boots and disc changes; the other titles' saves are left alone.
+- **Every board.** The 16 MB cart (with the preload), the 8 MB cart, and the 4 MB cart (the SIGIL disc,
+  and the DOOM disc built with `CART4=1`; the save area is in the game's 4 MB there, so the game must
+  end below it).
+
+How it works in detail: "The cart" and "Every boot" below.
 
 ## What it is, and what it isn't
 
