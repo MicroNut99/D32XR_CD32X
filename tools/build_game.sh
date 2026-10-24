@@ -26,10 +26,6 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # pauses in the wait loops of the two SH2s, both discs (README "Frame rate"; doomdef.h CD32X_PAUSE;
 # off: NOIDLE=1; only with CD32X=1, so the plain Fusion build stays the release's)
 case " $* " in *" CD32X=1 "*) [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h" ;; esac
-# CART=1 (build.sh CART=1): the 32X+CD cartridge - the same engine (CD32X=1: its features), but the
-# 68000 side (src-md) in D32XR's own cartridge mode (Mega CD mode 1, the cart's save RAM, MegaSD):
-# the game boots from the cart and uses the Sega CD for its WADs and music, as Fusion does
-[ -n "${CART:-}" ] && sed -i 's|^\tmake -C src-md$|\tmake -C src-md CD32X=|' "$B/Makefile"
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)

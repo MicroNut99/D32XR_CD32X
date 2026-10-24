@@ -107,14 +107,7 @@ Also:
 - A Mega Drive / Genesis with a **32X**, a **Sega CD** and a **RAM cart** (4, 8 or 16 MB).
 - The disc image: `D32XR_CD32X_SIGIL.cue` + `.bin` (always load the `.cue`).
 
-**SIGIL 32X+CD** (cartridge + disc):
-- A Mega Drive / Genesis with a **32X** and a **Sega CD**, and a flash cart for the 32X (or an
-  emulator that runs a 32X cartridge together with a Sega CD image, such as ares).
-- The cartridge ROM: `SIGIL32X.32x`
-- The disc image: `SIGIL32X_CD.cue` + `SIGIL32X_CD.bin` (always load the `.cue`)
-
-The cartridge and the CD are used together (Sega CD "Mode 1"): the game boots from the cartridge,
-the Sega CD supplies the WADs and the music. No RAM cart.
+**SIGIL 32X+CD** (cartridge + disc, no RAM cart): its own project, MicroNut99/D32XR_SIGIL_32XCD.
 
 ### To build
 
@@ -239,27 +232,9 @@ python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL I
   IWAD): the ROM-map loader, the draw distance (far open lines drawn as darkness in busy views)
   and the black clear after a frame that ran out of walls.
 
-**2b. The SIGIL 32X+CD cartridge** (`CART=1`: SIGIL and SIGIL II for a flash cart, with the SIGIL
-disc in the Sega CD):
-
-```
-cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART=1 ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=SIGIL32X_CD ./build.sh 2>&1 | tee build_log.txt
-```
-
-- The SIGIL disc's command plus `CART=1` and `NAME=SIGIL32X_CD`. In `discs/SIGIL32X_CD/`:
-  `SIGIL32X.32x`, the cartridge ROM (4 MB) for a flash cart on the 32X, and `SIGIL32X_CD.cue` +
-  `.bin`, the disc (the same as the SIGIL disc; named as OpenTyrian's `TYRIAN32X.32x` +
-  `TYRIAN32X_CD`). `CARTNAME=<name>` names the ROM otherwise.
-- Play it as a 32X+CD game, the way Fusion itself runs: the cartridge in the 32X, **this SIGIL disc**
-  in the Sega CD. The game boots from the cart (no RAM cart, no copying), and reads SIGIL.WAD,
-  SIGIL_II.WAD, SOUNDS.WAD and the CD audio from the disc. The same disc still boots by itself as
-  the CD32X disc into a RAM cart.
-- The same game: the same 12 levels (E6M1 left out), the ROM maps, the draw distance, the pauses,
-  the silent loading screens, the pictures. Only the 68000 side differs: it is built in D32XR's own
-  cartridge mode (`tools/build_game.sh CART=1`: Mega CD mode 1, as upstream D32XR and Fusion), so
-  saves go to the flash cart's save RAM.
-- In ares: load the `.32x` as a Mega 32X cartridge and give it the disc when it asks for the CD.
+**SIGIL as a 32X+CD cartridge** (booting from a flash cart, the levels and music from the Sega CD,
+no RAM cart) is its own project now: **MicroNut99/D32XR_SIGIL_32XCD**
+(`S:\KoboPort\sega-toolchain-12.1\sega\D32XR_SIGIL_32XCD`).
 
 **3. Variants of the SIGIL disc:**
 
@@ -276,8 +251,6 @@ Fusion), part of it in stack space the game never reaches.
 | Switch | Disc | What it does |
 |---|---|---|
 | `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
-| `CART=1` | SIGIL | also the 32X+CD cartridge ROM `discs/<name>/SIGIL32X.32x` (2b) |
-| `CARTNAME=<name>` | SIGIL | the cartridge ROM's name with `CART=1` (default `SIGIL32X`) |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
