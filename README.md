@@ -1,6 +1,6 @@
 # D32XR CD32X: DOOM CD32X Fusion from the CD
 
-DOOM CD32X Fusion v3.0 on **Sega CD + 32X + the 8 / 16 MB RAM cart**, booted from a CD. No flash cart is needed.
+DOOM CD32X Fusion v3.0 on **Sega CD + 32X + the 8 / 16 MB RAM cart**, boots all from a CD only.
 
 1. The disc boots, and the loader copies the game (and, on the 16 MB cart, the main WADs) into the RAM cart.
 2. D32XR starts from the cart with all of Fusion's own features (the FMV intro, the game select menu, the WADs, music and sound effects through the Sega CD) and the additions below.
