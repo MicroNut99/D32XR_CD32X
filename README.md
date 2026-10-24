@@ -117,7 +117,7 @@ NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Runs on the 4, 8 and 16 MB RAM carts. The log line `4 MB cart: yes (...)` says it fits before
@@ -128,7 +128,11 @@ ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 NOREJECT=1 SIGILONLY=1 MUSIC=sig
 - `ROMMAPS`: the maps too big to load from the CD run from the game's ROM image in the cart
   (`tools/make_rommaps.py`): their read-only parts are used in place.
 - `ROMBUDGET=64`: KB of each ROM map's own textures (more = fewer look-alike textures; with E6M1
-  too, 30 is the most that still fits the 4 MB board).
+  too, 30 is the most that still fits the 4 MB board). Walls near player 1's start count 64 times
+  and the packs' signature art (SIGILTX2, the lion-head switch) is placed first, so what you see
+  first is real.
+- `ROMBUDGETS="E6M8=96"`: a map's own budget instead of `ROMBUDGET` (E6M8's start pillars,
+  SKSPINE1, need it; the game still ends about 105 KB before the 4 MB board's save area).
 - `NOREJECT=1`: the ROM maps without their sight tables (room in the ROM).
 - `SIGILONLY=1`: DOOM.WAD (and the other games) left off; their textures make room for the ROM
   maps and their textures.

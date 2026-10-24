@@ -107,6 +107,15 @@ def die(msg):
 # ------------------------------------------------------------------------------------------------
 # the base game (the IWAD in the ROM, big-endian)
 
+
+START_NEAR = 768        # map units around player 1's start whose walls count START_BOOST times
+START_BOOST = 64
+SIGNATURE_TEX = {'SIGILTX2', 'SIGILTEX', 'SW1LION', 'SW2LION'}   # kept first: the packs' own art (SIGIL II's
+                       # demon face) and DOOM's lion-head switch (SIGIL II E6M8's start column)
+SIGNATURE_BOOST = 64
+SIGNATURE_STANDIN = {'SIGILTX2': ('MARBFACE', 'MARBFAC3', 'MARBFAC2'),   # no room: DOOM's demon faces,
+                     'SW1LION': ('SW1ROCK',), 'SW2LION': ('SW2ROCK',)}   # its skull switch on dark stone
+
 class Base:
     def __init__(self, path):
         _, self.L = read_wad(path, '>')
@@ -402,10 +411,18 @@ class Converter:
         nm = lambda b: b.split(b'\0')[0].decode('latin1').upper()
         tex_w, flat_w = {}, {}
         masked_mid = set()
+        # the walls around player 1's start are what you see first: they count START_BOOST times
+        start = None
+        for k in range(0, len(M['THINGS']), 10):
+            x, y, _, ty, _ = struct.unpack('<hhhhh', M['THINGS'][k:k + 10])
+            if ty == 1:
+                start = (x, y)
         for k in range(0, len(M['LINEDEFS']), 14):
             v1, v2, flags, special, tag, s1, s2 = struct.unpack('<HHHHHHH', M['LINEDEFS'][k:k + 14])
             (x1, y1), (x2, y2) = verts[v1], verts[v2]
             ln = max(8, int(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5))
+            if start and (((x1 + x2) / 2 - start[0]) ** 2 + ((y1 + y2) / 2 - start[1]) ** 2) ** 0.5 < START_NEAR:
+                ln *= START_BOOST
             for s in (s1, s2):
                 if s == 0xffff or s >= len(sides):
                     continue
@@ -413,7 +430,7 @@ class Converter:
                 for o in (4, 12, 20):
                     t = nm(sd[o:o + 8])
                     if t and t != '-':
-                        tex_w[t] = tex_w.get(t, 0) + ln
+                        tex_w[t] = tex_w.get(t, 0) + ln * (SIGNATURE_BOOST if t in SIGNATURE_TEX else 1)
                         if o == 20 and s2 != 0xffff:
                             masked_mid.add(t)
         # flats: the floor / ceiling area of the sectors that use them (shoelace over the linedefs)
@@ -567,7 +584,14 @@ class Converter:
             cands = [t['name'] for t in B.tex if not t['masked'] and t['name'] not in taken and
                      (t['w'], t['h']) == (w, h) and B.picture(t['name']) is not None] or \
                     [t['name'] for t in B.tex if not t['masked'] and t['name'] not in taken and B.picture(t['name']) is not None]
-            c = self.closest('tex', frames[0], cands)
+            pair = [next((x for x in SIGNATURE_STANDIN.get(f, ()) if x in cands), None) for f in frames]
+            if all(pair) and len(set(pair)) == len(frames) > 1:     # a switch: the base game's look-alike pair
+                for f, c in zip(frames, pair):
+                    rename_t[f] = c
+                log.append('switch %s -> looks like %s (%s)' % ('/'.join(frames), '/'.join(pair), why))
+                return
+            c = next((x for x in SIGNATURE_STANDIN.get(frames[0], ()) if x in cands), None) or \
+                self.closest('tex', frames[0], cands)
             for f in frames:
                 rename_t[f] = c
             log.append('texture %s -> looks like %s (%s)' % (frames[0], c, why))
@@ -618,7 +642,7 @@ class Converter:
             work.append((wgt / (4096.0 * len(frames)), 'flat', kind, frames, wgt))
         for kind, frames, wgt in units:
             work.append((wgt * WALL_H / float(sum(tsize(f, 2) for f in frames)), 'tex', kind, frames, wgt))
-        work.sort(key=lambda x: -x[0])
+        work.sort(key=lambda x: (not set(x[3]) & SIGNATURE_TEX, -x[0]))
         for _, what, kind, frames, wgt in work:
             if what == 'flat':
                 place_flat(kind, frames)
@@ -719,7 +743,9 @@ class Converter:
         """RAM for the map's extras: measured (--budgets: free zone RAM after loading the map without
         extras, minus the margin), else K - the map's own footprint"""
         if self.cur_map in self.rom_maps:
-            return self.args.rom_budget * 1024          # a ROM map's extras stay in the ROM: no RAM
+            # a ROM map's extras stay in the ROM: no RAM (--rom-budget, or its own: --rom-budgets)
+            per = dict(x.split('=') for x in (self.args.rom_budgets or '').replace(',', ' ').split() if '=' in x)
+            return int(per.get(self.cur_map, self.args.rom_budget)) * 1024
         if self.budgets is not None:
             return self.budgets.get(self.cur_map, 0)
         # measured on Plutonia's 32 maps in ares: texture cache + level data = 177.4 KB (+-3 KB
@@ -1107,6 +1133,7 @@ def main():
     ap.add_argument('--rom-maps', help='SIGIL: a PWAD for the maps named by --rom (they go into the ROM: tools/make_rommaps.py)')
     ap.add_argument('--rom', help='SIGIL with --rom-maps: the ROM maps, e.g. E5M4,E5M9')
     ap.add_argument('--rom-budget', type=int, default=160, help='KB of ROM for a ROM map\'s textures, flats and sky')
+    ap.add_argument('--rom-budgets', help='ROM maps with their own budget, e.g. "E6M8=96"')
     ap.add_argument('--maxlevel', type=int, default=175, help='KB of RAM a level may take (bigger maps are left out)')
     ap.add_argument('--base', required=True)
     ap.add_argument('--fusion', required=True)

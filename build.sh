@@ -88,7 +88,7 @@ for G in sigil sigil2; do
   PIC="$(ls "$DATA/sigil/${PIC}_1.jpg" "$DATA/sigil/$PIC.jpg" "$DATA/sigil/$PIC.png" "$DATA/sigil/$PIC.webp" 2>/dev/null | head -1)"
   WALL="$(ls "$DATA/sigil/sigil-wallpaper_1.jpg" "$DATA/sigil/sigil-wallpaper.jpg" 2>/dev/null | head -1)"
   echo "==> $OUTW (from data/sigil/$PW${ROMMAPS:+; ROM maps of $ROMMAPS})"
-  ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}"
+  ROMOPT=""; [ -n "$ROMMAPS" ] && ROMOPT="--rom-maps $HERE/build/rom_$G.wad --rom ${ROMMAPS// /,} --rom-budget ${ROMBUDGET:-64}${ROMBUDGETS:+ --rom-budgets ${ROMBUDGETS// /,}}"
   python3 "$HERE/tools/make_game.py" --game $G --pc "$DATA/doom.wad" "$DATA/sigil/$PW" --base "$DATA/doom32xf.wad" \
           --fusion "$DATA/fusion" --title "$PIC" --interpic "$WALL" $SMUS $ROMOPT \
           --out "$DISC/$OUTW" --report "$HERE/build/${G}_report.txt" > "$HERE/build/${G}_log.txt" \
