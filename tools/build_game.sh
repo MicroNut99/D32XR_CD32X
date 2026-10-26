@@ -16,12 +16,36 @@ DK="${GENDEV:-/opt/d32xr-dk/opt/toolchains/sega}"
 [ -f "$HERE/data/doom32xf.wad" ] || { echo "*** no data/doom32xf.wad (tools/extract_iwad.py <your Fusion ROM> data/doom32xf.wad)"; exit 1; }
 B="$HERE/build/d32xr"
 rm -rf "$B"; mkdir -p "$HERE/build"; cp -r "$HERE/d32xr" "$B"
-cp "$HERE/data/doom32xf.wad" "$B/doom32xf.wad"
+# IWAD=<file>: another IWAD (build.sh ROMMAPS: with the ROM maps, tools/make_rommaps.py)
+cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
+# the ROM maps' engine side (p_setup.c) only on that disc (build.sh ROMMAPS=...)
+[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_ROMMAPS 1' "$B/p_setup.c"
+# and the draw distance (far lines as darkness in busy views, r_phase1.c / r_phase6.c): the SIGIL
+# disc's maps need it; on the DOOM disc the program has no room for it beside Fusion's IWAD
+[ -n "${ROMMAPS:-}" ] && sed -i '1i #define CD32X_DARKFAR 1' "$B/r_phase1.c" "$B/r_phase6.c" "$B/r_main.c"
+# pauses in the wait loops of the two SH2s, both discs (README "Frame rate"; doomdef.h CD32X_PAUSE;
+# off: NOIDLE=1; only with CD32X=1, so the plain Fusion build stays the release's)
+case " $* " in *" CD32X=1 "*) [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h" ;; esac
+# DRAWDIST=far: the farther draw distance (r_phase1.c)
+[ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
 [ -n "${PRELOAD_H:-}" ] && cp "$PRELOAD_H" "$B/src-md/cd32x_preload.h"
 # CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the
 # music option CD means FM for the others (marssound.c, CD32X_CDONLY)
-[ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c"
+[ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c" "$B/g_game.c"
+# TEST_GOD=1: emulator testing only - the player takes no damage
+[ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->player) return;\n&|' "$B/p_inter.c"
+# TEST_STATS=1: emulator testing only - r_main.c keeps the renderer's peak use against its limits (r_stat)
+[ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c" && sed -i '1i #define R_STATS_STACK 1' "$B/marsonly.c"
+# TEST_DEBUG=1: emulator testing only - D32XR's timing screen on from the start (fps, game logic, BSP,
+# walls, planes, sprites, render, draw, total in ms; normally Options + MODE)
+[ -n "${TEST_DEBUG:-}" ] && sed -i 's/^VINT \tdebugmode = DEBUGMODE_NONE;/VINT \tdebugmode = DEBUGMODE_ALLCOUNT;/' "$B/marsnew.c"
+# TEST_EXIT=1: emulator testing only - every level ends by itself after about 300 frames (the
+# intermission, the next map's loading screen)
+[ -n "${TEST_EXIT:-}" ] && sed -i 's|^\tgameaction = ga_nothing;$|&\n\t{ static int test_exit; if (++test_exit > 300) { test_exit = 0; G_ExitLevel(); } }|' "$B/p_tick.c"
+# TEST_WALLS=n TEST_PLANES=n: emulator testing only - other renderer limits (MAXWALLCMDS 165, MAXVISPLANES 32)
+[ -n "${TEST_WALLS:-}" ] && sed -i "s/^#define\tMAXWALLCMDS\t\t165/#define\tMAXWALLCMDS\t\t$TEST_WALLS/" "$B/r_local.h"
+[ -n "${TEST_PLANES:-}" ] && sed -i "s/^#define\tMAXVISPLANES\t32/#define\tMAXVISPLANES\t$TEST_PLANES/" "$B/r_local.h"
 cd "$B"
 OPTS=""; [ -n "${FIRE:-}" ] && OPTS="ENABLE_FIRE_ANIMATION=1 FIRE_TIME=470"
 env $OPTS "$@" \

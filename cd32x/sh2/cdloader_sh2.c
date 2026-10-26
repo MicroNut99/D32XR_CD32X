@@ -404,8 +404,15 @@ static uint32_t sum_add(uint32_t s, const volatile uint32_t *p, uint32_t len) {
 static uint32_t rom_sum(void) {
     uint32_t s;
     cart_page(CDL_D32XR_PAGE);
+#if PL_ROM_LENGTH <= 0x200000
+    /* a game image of 2 MB or less (fit_4mb.py cuts it to its used length): window 0 only - the
+       second part's length would wrap around to about 4 GB */
+    (void)s;
+    return sum_add(0, (const volatile uint32_t *)0x22000000, PL_ROM_LENGTH);
+#else
     s = sum_add(0, (const volatile uint32_t *)0x22000000, 0x200000);
     return sum_add(s, CART_W1, PL_ROM_LENGTH - 0x200000);
+#endif
 }
 static uint32_t file_sum(int f) {
     uint32_t s = 0, done = 0, len = pl_files[f].length, lin = pl_files[f].linear;
@@ -492,7 +499,9 @@ int main(void) {
         show_status(0x4D10);
         mb = cart_probe();
         show_status((uint16_t)(mb == 4 ? 0x4D11 : mb == 8 ? 0x4D12 : 0x4D13));
-        if (mb == 4) { splash_text(1); halt(0x4DE5); }       /* "NEEDS THE 8 MB OR 16 MB RAM CART" */
+        /* the 4 MB board: the shared save area (0x3F0000-0x3FFFFF) is in the game's 4 MB - only a
+           game that ends before it runs there (the SIGIL disc, tools/fit_4mb.py) */
+        if (mb == 4 && PL_ROM_LENGTH > 0x3F0000) { splash_text(1); halt(0x4DE5); }   /* "NEEDS THE 8 MB OR 16 MB RAM CART" */
         SC_COMM2 = FILE_D32XR;
         wait_cmd(CMD_OPEN_FILE);
         len = SC_COMM8_32;

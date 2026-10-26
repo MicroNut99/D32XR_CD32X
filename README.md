@@ -1,11 +1,30 @@
 # D32XR CD32X: DOOM CD32X Fusion from the CD
 
-DOOM CD32X Fusion v3.0 on **Sega CD + 32X + the 8 / 16 MB RAM cart**, boots all from a CD only.
+DOOM CD32X Fusion v3.0 on **Sega CD + 32X + a 4 / 8 / 16 MB RAM cart**, booted from a CD. No flash cart is needed.
 
 1. The disc boots, and the loader copies the game (and, on the 16 MB cart, the main WADs) into the RAM cart.
 2. D32XR starts from the cart with all of Fusion's own features (the FMV intro, the game select menu, the WADs, music and sound effects through the Sega CD) and the additions below.
 
 The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source (viciious/d32xr, tag `fusion_v3.0`, the same commit as v3.5). Built without the CD32X changes, it comes out byte for byte the Fusion ROM; only the build date in the header differs.
+
+## Cart features
+
+- **Fast load.** The first boot copies the game into the RAM cart (and, on the 16 MB cart, the main
+  WADs: SOUNDS, DOOM, DOOM II, RESURRECTION, or SIGIL and SIGIL II). That takes a few minutes, behind
+  **FIRST TIME: COPYING DOOM INTO THE RAM CART** and a gold bar. Every later boot checks the cart
+  with checksums and, when everything matches, starts the game straight away, copying nothing. Only
+  what changed is copied again (after switching discs: the other disc's game).
+- **Preloaded WADs (16 MB cart).** The game reads them from the cart instead of the CD: the same
+  bytes, no seeking, so levels load faster. On 4 and 8 MB the WADs are read from the CD.
+- **A + B + C reset.** Hold **A + B + C** while the disc boots to copy everything into the cart again,
+  checked or not (if the cart's contents are ever damaged, or another title used those pages).
+- **Saves on the cart.** Games save in the cart's shared save area (piece 11), battery-backed, kept
+  across boots and disc changes; the other titles' saves are left alone.
+- **Every board.** The 16 MB cart (with the preload), the 8 MB cart, and the 4 MB cart (the SIGIL disc,
+  and the DOOM disc built with `CART4=1`; the save area is in the game's 4 MB there, so the game must
+  end below it).
+
+How it works in detail: "The cart" and "Every boot" below.
 
 ## What it is, and what it isn't
 
@@ -23,16 +42,17 @@ The game is DOOM CD32X Fusion v3.0, built from the D32XR team's source (viciious
 
 ## The two discs
 
-| | **IDKFA disc** (default) | **SIGIL disc** (`MUSIC=sigil`) |
+| | **DOOM disc** (IDKFA, the default) | **SIGIL disc** (`MUSIC=sigil` + the ROM maps, see Building) |
 |---|---|---|
-| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, SIGIL, SIGIL II, TNT MINI | the same |
-| CD audio tracks | **2-26: Fusion's IDKFA soundtrack**, taken byte for byte from your IDKFA disc image | **2-23: SIGIL's and SIGIL II's songs** (11 each) |
+| Games in the select menu | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI | SIGIL (7 levels), SIGIL II (5 levels) |
+| RAM cart | 8 or 16 MB | 4, 8 or 16 MB |
+| CD audio tracks | **2-26: Fusion's IDKFA soundtrack**, taken byte for byte from your IDKFA disc image | **2-23: Buckethead's SIGIL and THORR's SIGIL II albums** (11 tracks each: title, the 9 maps, intermission; SIGIL's title and intermission are DOOM / Resurrection's IDKFA tracks; the 5 maps not on the disc get 1 s of silence) |
 | DOOM, RESURRECTION music | FM (Fusion's VGM) or, with the music option on CD, the IDKFA tracks | FM (the CD option means FM here: the CD tracks are SIGIL's) |
 | DOOM II, PLUTONIA music | FM, or with CD the IDKFA tracks: these games have no tracks of their own on that disc, so their track numbers wrap onto DOOM's songs (as on Fusion's own IDKFA disc) | FM |
 | TNT MINI music | FM, or with CD the IDKFA tracks by its song numbers (it has no tracks of its own either) | FM |
-| SIGIL, SIGIL II music | **streamed from the data track** (Fusion's SPCM: 8-bit, 21.4 kHz mono), whatever the music option (off silences it) | **CD audio**, whatever the music option (off silences it) |
-| Left off the disc | `MAPDEV.WAD` (Fusion's map-testing file; the menu hides it) and the loose `VGM_*` folders (spare copies of music already inside the WADs) | nothing |
-| Size | about 79:46 of an 80:00 CD (estimated from the IDKFA cue; the build prints the real figure and warns above 80:00) | 64:52 |
+| SIGIL, SIGIL II music | not on this disc (`WITHSIGIL=1`: streamed from the data track, Fusion's SPCM) | **CD audio**, whatever the music option (off silences it) |
+| Left off the disc | `MAPDEV.WAD` (Fusion's map-testing file; the menu hides it) and the loose `VGM_*` folders (spare copies of music already inside the WADs) | DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI, MAPDEV |
+| Size | about 79:46 of an 80:00 CD (estimated from the IDKFA cue; the build prints the real figure and warns above 80:00) | about 72 minutes |
 
 Both are **mixed-mode** discs: one `.bin` (data track 1, then the audio tracks, no gaps between them, like the IDKFA disc's cue) and its `.cue`. The audio tracks can be replaced later without touching the data.
 
@@ -60,13 +80,15 @@ Also:
 
 ## What's missing
 
-- **SIGIL maps E5M4, E5M5, E5M6, E5M7, E5M9** and **SIGIL II maps E6M1, E6M4, E6M5, E6M6, E6M7, E6M8**: each map's level data alone (190-390 KB) is bigger than the 32X can hold (about 177 KB for a level and its textures together, measured in ares). Their music is on the SIGIL disc's CD tracks already, so they can be added if a way to fit them is found.
+- **SIGIL E5M6, E5M7 and SIGIL II E6M1, E6M5, E6M6, E6M7** are not on the SIGIL disc: E5M6, E5M7,
+  E6M5, E6M6 and E6M7 don't fit the 32X's RAM even as ROM maps; E6M1 fits but plays too badly (see
+  "Why six SIGIL levels are left out"). Their CD audio tracks are on the disc (1 s of silence), so the numbering stays.
 - **PLUTONIA MAP28 and MAP29:** the same reason (`Z_Malloc failed` in ares). The map before goes on to the next one that fits.
 - **Textures:** a map's own textures share the memory left after its level data. What doesn't fit is drawn as the base game's closest-looking texture of the same size (the build report lists every one). The SIGIL maps are so big that almost all their own textures are stand-ins (lava falls and red rock show as wood and step textures). Skies: the map's own sky only when it fits, else the base game's (SIGIL: the red hell sky).
 - **SIGIL's "real" soundtracks** (Buckethead for SIGIL, Thorr for SIGIL II) are not on the discs: the only SIGIL music supplied was the OPL soundtrack video, so its CD tracks and streamed songs sound like FM synth music. SIGIL II's songs are its MIDIs played through an OPL3 emulator with DOOM's instruments, the same kind of sound. Give the build other WAVs (`data/sigil_cdda/Track02-23.wav`) to change that.
 - **No skill / level choice when PLUTONIA, SIGIL or SIGIL II start:** like Fusion's WADs without attract demos, the title goes straight into the first map on medium. Pick the skill and the level with Start, Game, New Game.
 - **The preload** (16 MB cart) holds SOUNDS, DOOM, DOOM II and RESURRECTION. TNT MINI, PLUTONIA and the SIGILs are read from the CD (no room left in pages 2-6).
-- **8 MB cart:** runs, without the preload. **4 MB cart:** refused (the game's 4 MB would overwrite the shared save area).
+- **8 MB cart:** runs, without the preload. **4 MB cart:** the normal DOOM disc is refused (its game fills the whole 4 MB, save area included); the switched build `CART4=1` runs on it, with 13 wall textures in 16 colours (see "Building", 1b).
 - **Black patches** in some outdoor spots (also in Plutonia MAP07): gaps the 32X engine leaves empty, as in Fusion.
 - **FMV sound in ares** is rough on this disc and on Fusion's own disc alike (the same recording, measured): an emulator matter as far as can be told.
 - **Console:** not run yet.
@@ -95,23 +117,144 @@ Also:
 - `genisoimage`, Python 3 with NumPy and Pillow (`sudo apt install python3-numpy python3-pil genisoimage`). No SciPy.
 - Only for `tools/make_sigil_cdda.sh`: ffmpeg, git, cmake, gcc / g++ (it builds libADLMIDI).
 
-**The IDKFA disc:**
+Every command starts with the `cd`, so it works from any folder. The disc ends up in
+`discs/<NAME>/<NAME>.cue` with its `.bin`: burn or load the `.cue`. A build takes about 5 minutes.
+The discs build different game programs, so after switching discs the first boot copies the game
+into the cart again.
+
+**1. The DOOM disc** (DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI; CD audio = the IDKFA soundtrack):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-NAME=D32XR_CD32X_IDKFA bash build.sh 2>&1 | tee build_log.txt
+NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 ```
 
-**The SIGIL disc:**
+- Needs the 8 MB or 16 MB RAM cart (the 4 MB board is refused: the game fills it, save area
+  included; for the 4 MB cart build 1b instead). On 16 MB, DOOM, DOOM II and RESURRECTION are
+  preloaded into the cart.
+- SIGIL and SIGIL II are not on this disc. `WITHSIGIL=1` puts them back (only the maps that fit the
+  32X's RAM from the CD, with SIGIL's songs streamed from the data track).
+
+**1b. The DOOM disc for the 4 MB cart** (`CART4=1`; the same five games):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-MUSIC=sigil NAME=D32XR_CD32X_SIGIL bash build.sh 2>&1 | tee build_log.txt
+CART4=1 NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
 ```
 
-Each takes about 5 minutes (converting PLUTONIA with the texture pack is the slow part). The disc is `discs/<NAME>/<NAME>.cue` with its `.bin`. Burn or load the `.cue`. The two discs build different game programs, so after switching discs the first boot copies the game into the cart again.
+- Runs on the 4, 8 and 16 MB RAM carts, and saves in the cart's save area beside the game like
+  the other boards. The log line `4 MB cart: yes (the game ends at 0x3EF464, 2972 bytes before the
+  save area ...)` confirms the fit; `4 MB cart: no` means the program grew and it doesn't fit.
+- How it fits: on the 4 MB board the save area is the cart's top 64 KB (0x3F0000-0x3FFFFF), and the
+  normal game image (program + Fusion's IWAD) fills all 4 MB. `tools/make_cart4.py` makes a copy of
+  Fusion's IWAD 66 KB smaller (`build/cart4_iwad.wad`; the build log lists what it did):
+  - textures and flats none of the five games uses point to one small one (4 KB; every sprite is
+    used by one of the games, so none can go);
+  - 13 wall textures are stored in 16 colours (4-bit) instead of 256: WOOD5, TEKWALL4, PLAT1,
+    MARBFACE, MARBFAC3, COMPTALL, BIGDOOR2, then BRONZE3, METAL4, BRICK5, MARBLE3, PANEL4 and
+    BRICKLIT (the ones that lose the least colour). This is Fusion's own format - it already stores
+    55 of its 148 textures that way - and the engine needs no change. The skies stay as they are.
+- The difference to the normal disc: those 13 walls in 16 colours, on every board the disc runs on.
+  Use the normal disc on the 8 / 16 MB carts for full colour (and the preload on 16 MB).
+- Tested in ares on the 4 MB cart: boot, all five games (10 levels, 60 s each, from the CD), the
+  options written to save piece 11 with the other 15 pieces and the game untouched, also after a
+  reboot. A checkpoint save itself is untested (Fusion saves at checkpoints, after the first area).
 
-**Options:** `NAME=<name>` the disc's name; `MUSIC=sigil` the SIGIL disc; `FIRE=0` no title fire; `HIRES=0` PLUTONIA without the texture pack; `CUT="..."` the Fusion files left off (`CUT=""` keeps all); `IDKFA=<cue>` the IDKFA disc image; `PLUT_BUDGETS=<file>` Plutonia's texture budgets.
+**2. The SIGIL disc** (SIGIL and SIGIL II, 12 of their 18 levels; CD audio = Buckethead and THORR):
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+```
+
+- Runs on the 4, 8 and 16 MB RAM carts. The log line `4 MB cart: yes (...)` says it fits before
+  the 4 MB board's save area; on 16 MB, SIGIL.WAD and SIGIL_II.WAD are preloaded.
+- Levels: E5M1-5, E5M8, E5M9 and E6M2-4, E6M8, E6M9. E5M6, E5M7, E6M5, E6M6 and E6M7 are too big
+  for the 32X's RAM; E6M1 fits (add it to `ROMMAPS`, `ROMBUDGET=30`) but plays badly: about 10 fps
+  and its many far-off enemies shoot from the darkness (README "Why six SIGIL levels are left out").
+- `ROMMAPS`: the maps too big to load from the CD run from the game's ROM image in the cart
+  (`tools/make_rommaps.py`): their read-only parts are used in place.
+- `ROMBUDGET=64`: KB of each ROM map's own textures (more = fewer look-alike textures; with E6M1
+  too, 30 is the most that still fits the 4 MB board). Walls near player 1's start count 64 times
+  and the packs' signature art (SIGILTX2, the lion-head switch) is placed first, so what you see
+  first is real.
+- `ROMBUDGETS="E6M8=96"`: a map's own budget instead of `ROMBUDGET` (E6M8's start pillars,
+  SKSPINE1, need it; the game still ends about 105 KB before the 4 MB board's save area).
+- `NOREJECT=1`: the ROM maps without their sight tables (room in the ROM).
+- `SIGILONLY=1`: DOOM.WAD (and the other games) left off; their textures make room for the ROM
+  maps and their textures.
+- `DRAWDIST=far`: the farther draw distance (darkness from 190 walls a frame, beyond 1536 units);
+  without it, from 150 walls beyond 1024 (less of the view, but busy views reach the wall limit
+  far less often).
+- `NOIDLE=1`: leaves out the pauses in the SH2 wait loops (both discs; on by default; see
+  "Frame rate").
+- The pictures (`data/sigil/`, the first that exists): the titles `sigil.jpg` / `Sigil2.jpg` (else
+  `<name>_1.jpg`, `.png`, the `.webp` from the download); the intermission / level loading picture
+  of both: `art/sigil-wallpaper.jpg` (the goat, full screen; in the repository, not `data/`).
+  `SIGILPIC=<file>` puts another picture there for both; `SIGILPIC=lump:SIGILINT` or
+  `lump:SIGILIN2` a WAD's own art (SIGIL II's is widescreen: its 4:3 middle).
+- SIGIL II's lion-head switch (SW1LION / SW2LION, E6M8's start pillars) shows the goat from
+  `art/sigil-wallpaper.jpg` (its middle strip, 64 x 128; `tools/make_game.py --tex-image`) instead
+  of DOOM's lion. `SIGILPILLAR=0` keeps the lion. In E6M2 and E6M3 (no room for their own textures)
+  the switch stays the base game's skull switch.
+- Silent loading screens: the title (the SIGIL logo while the first map loads) has no song, and the
+  music stops while a level loads (`d32xr/g_game.c`, SIGIL disc only); the intermission keeps its
+  song, the level's own starts once it's loaded. CD tracks 02 and 13 (the title songs) are no
+  longer played.
+- The music: `data/sigil_albums/Track02-23.wav`, made once from your albums:
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL II THORR Music/SIGIL_II_MP3_V1_0.WAD" --idkfa "DOOM CD32X FUSION V3 with IDKFA Soundtrack/DOOM CD32X FUSION V3 with IDKFA Soundtrack.cue" --out data/sigil_albums --cap 280
+```
+
+  (needs ffmpeg: Buckethead's 9 tracks, the SIGIL II MP3 WAD's 11 songs, and SIGIL's title and
+  intermission from the IDKFA disc; every song at -21 dBFS, faded out at 4:40 so the disc fits a
+  74-minute CD.) Without `data/sigil_albums` the disc uses the OPL renders in `data/sigil_cdda`.
+- Engine changes only on this disc (the DOOM disc's program has no room for them beside Fusion's
+  IWAD): the ROM-map loader, the draw distance (far open lines drawn as darkness in busy views)
+  and the black clear after a frame that ran out of walls.
+
+**3. Variants of the SIGIL disc:**
+
+| Want | Change the SIGIL command |
+|---|---|
+| keep DOOM on it (the same 12 levels) | drop `SIGILONLY=1` and use `ROMBUDGET=24` (DOOM's textures take the room; 8 / 16 MB only) |
+| SIGIL's songs streamed instead of CD audio | `WITHSIGIL=1` on the DOOM disc instead (the CD maps only) |
+
+**Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
+Fusion), part of it in stack space the game never reaches.
+
+**Every switch** (put it in front of `./build.sh`, as in the commands above):
+
+| Switch | Disc | What it does |
+|---|---|---|
+| `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
+| `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
+| `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
+| `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
+| `SIGILONLY=1` | SIGIL | only SIGIL and SIGIL II on the disc (DOOM and the others left off: room for the ROM maps' textures) |
+| `ROMMAPS="E5M4 ..."` | SIGIL | the maps that run from the game's ROM image (too big to load from the CD) |
+| `ROMBUDGET=64` | SIGIL | KB of each ROM map's own textures (default 64) |
+| `ROMBUDGETS="E6M8=96"` | SIGIL | a ROM map's own texture budget instead of `ROMBUDGET` |
+| `NOREJECT=1` | SIGIL | the ROM maps without their sight (reject) tables: room in the ROM |
+| `DRAWDIST=far` | SIGIL | the farther draw distance (darkness beyond 1536 units from 190 walls a frame, instead of 1024 from 150) |
+| `NOIDLE=1` | both | no pauses in the SH2 wait loops ("Frame rate") |
+| `FIRE=0` | both | no title fire (Resurrection's) |
+| `HIRES=0` | DOOM | PLUTONIA without the 1K texture pack |
+| `PLUT_BUDGETS=<file>` | DOOM | PLUTONIA's per-map texture budgets (default `tools/plutonia_budgets.txt`) |
+| `CUT="..."` | both | the Fusion disc files left off (`CUT=""` keeps all) |
+| `IDKFA=<cue>` | DOOM | the IDKFA soundtrack disc image (default: the `.cue` in "DOOM CD32X FUSION V3 with IDKFA Soundtrack") |
+| `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
+| `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `art/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
+| `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
+| `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
+
+**Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
+`TEST_STATS=1` the renderer's counters (walls, floor / ceiling areas, stack depth) for an ares RAM
+dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits; `TEST_EXIT=1` every level ends by itself after
+about 300 frames (to see the intermission and the next loading screen); `TEST_DEBUG=1` D32XR's
+timing screen on from the start (in a disc you play: Options + MODE; its times read 0 in ares).
 
 **The build's tools** (`tools/`):
 
@@ -123,7 +266,81 @@ Each takes about 5 minutes (converting PLUTONIA with the texture pack is the slo
 | `extract_cue_audio.py` | the IDKFA disc's audio tracks, byte for byte |
 | `make_sigil_cdda.sh`, `oplrender.c` | SIGIL's 22 songs as WAVs: cut from the OPL soundtrack video (SIGIL) and rendered through an OPL3 emulator (SIGIL II) |
 | `make_preload.py`, `make_splash.py`, `build_game.sh` | the preload plan and checksums, the loading screen, the game build |
+| `make_rommaps.py` | the SIGIL disc's IWAD: the ROM maps in the engine's own form, DOOM II's monster sprites and unused textures / flats pointed to one small one |
+| `make_sigil_albums.py` | the SIGIL disc's 22 CD audio tracks from Buckethead's and THORR's albums |
+| `fit_4mb.py` | cuts the game to its used size (SIGIL disc, `CART4=1` DOOM disc), so it runs on the 4 MB board beside the save area |
+| `make_cart4.py` | `CART4=1`: Fusion's IWAD 66 KB smaller for the 4 MB cart (unused textures/flats stubbed, 13 walls in 4-bit) |
 | `../cd32x/subcpu/make_mixed_cd2.py` | the mixed-mode `.bin` / `.cue` |
+
+## Why six SIGIL levels are left out
+The 32X has 256 KB of RAM. D32XR keeps a level in a 210 KB memory pool (the zone); a map loaded
+from the CD needs its whole level data there, about 175 KB at most with its textures. Five SIGIL
+maps are bigger than that, so they run as ROM maps (`ROMMAPS`): their vertexes, segs, nodes, reject
+and blockmap are used in place from the cart. Even so, a map's lines, sides, sectors, subsectors
+and its things (every monster and item becomes a 32X object) must be built in RAM. The six left out
+are the biggest in those (counts from the WADs; for comparison the largest maps on the disc):
+
+| Map | Level data | Things | Lines | Sides | Sectors | Subsectors | Result in ares |
+|---|---|---|---|---|---|---|---|
+| E5M6 Unspeakable Persecution | 325 KB | 436 | 4830 | 8450 | 538 | 3573 | `Z_Malloc: failed on 11720` while loading |
+| E5M7 Nightmare Underworld | 387 KB | 520 | 5629 | 8999 | 837 | 4217 | `Z_Malloc: failed on 17980` |
+| E6M5 Wrathful Reckoning | 319 KB | 414 | 4720 | 7885 | 705 | 3293 | `Z_Malloc: failed on 9704` |
+| E6M6 Vengeance Unleashed | 337 KB | 508 | 4887 | 8331 | 483 | 3820 | `Z_Malloc: failed on 14296` |
+| E6M7 Descent Into Terror | 351 KB | 647 | 4953 | 8223 | 725 | 3366 | `Z_Malloc: failed on 20092` |
+| E6M1 Cursed Darkness | 319 KB | 284 | 4461 | 7990 | 402 | 4049 | loads (as a ROM map), but about 10 fps, and far-off enemies shoot from the darkness: left out by choice |
+| *E5M4 (on the disc)* | 301 KB | 375 | 4427 | 6805 | 579 | 3184 | plays |
+| *E6M4 (on the disc)* | 306 KB | 264 | 4443 | 7595 | 483 | 3788 | plays |
+
+When one of the five loads, the zone fills with about 180 KB of level data and the next 10-20 KB
+request fails: they would need 10-20 KB more RAM than the 32X has for them. The zone can't give it
+(taking 11 KB from it already broke the big SIGIL II maps that do fit), the 16 MB cart doesn't
+help (it adds cart space, not RAM), and the rest of the 32X's RAM is the program, the frame
+buffers' work area and the stacks. E6M1 can be put back with `ROMMAPS="E5M4 E5M5 E5M9 E6M1 E6M4
+E6M8" ROMBUDGET=30` (it still fits the 4 MB board).
+
+## Frame rate
+The two SH2s share one bus, and the main SH2 has priority. A wait loop that reads a register or a
+lock as fast as it can takes the bus again and again while the other SH2 draws. On both discs every
+such loop of a frame pauses about 1.4-7 us between tries, in registers from the cache
+(`CD32X_PAUSE` in `d32xr/doomdef.h`; the same fix as OpenLara CD32X's REV-1). The loops: the second
+SH2 waiting for the next wall from the BSP walk (`r_phase2.c`), the wall drawing waiting for a
+prepared wall and the wall lock (`r_phase6.c`), the floor / ceiling lock and hand-over
+(`r_phase7.c`), the sprite hand-over (`r_phase8.c`), the end of the frame (`p_tick.c`), the main
+SH2 waiting for the second one's walls / planes / sprites / sight checks (`mars.h`) and the second
+SH2's idle loop (`marsnew.c`). The rare waits (melt, automap, title, sound / video set-up) stay as
+they were: each pause costs about 12 bytes, and the DOOM disc's program has 128 bytes to spare
+beside Fusion's IWAD (the sprite-setup error texts are shorter for it, `r_data.c`). The SIGIL disc's
+main SH2 stack keeps about 2 KB spare above its measured depth (7.1 KB). `NOIDLE=1` leaves the
+pauses out.
+
+Measured in ares with its console timing (`ARES_32X_TIMING=console`), standing 60 s at the start
+of a map (god mode, no input), frames drawn:
+
+| Map | Without | With the pauses |
+|---|---|---|
+| SIGIL E5M9 Realm of Iblis | 8.9 fps | 9.8 fps (+10 %) |
+| SIGIL E6M3 Twilight Desolation | 6.0 fps | 6.4 fps (+8 %) |
+| SIGIL E6M4 Fragments of Sanity | 6.3 fps | 6.7 fps (+7 %) |
+| SIGIL E6M8 Abyss of Despair | 6.9 fps | 7.3 fps (+5 %) |
+| PLUTONIA MAP01 | 14.7 fps | 15.0 fps (+2 %) |
+| PLUTONIA MAP04 | 19.9 fps | 20.0 fps |
+| PLUTONIA MAP06 | 9.2 fps | 9.8 fps (+6 %) |
+| PLUTONIA MAP08 | 16.5 fps | 18.3 fps (+11 %) |
+| PLUTONIA MAP20 | 6.0 fps | 6.7 fps (+11 %) |
+| PLUTONIA MAP32 | 13.3 fps | 14.1 fps (+6 %) |
+
+(SIGIL: an earlier set of pause sites; PLUTONIA: the `CART4=1` disc on the 4 MB cart.) Compare
+builds standing still: a scripted player who walks and fires ends up somewhere else in each build
+(the game runs by time, the script by frames), wakes other monsters, and the frame rate then swings
+between about 7 and 15 fps whatever the code.
+
+All 137 levels of the DOOM disc (16 MB cart) and the SIGIL disc's 12 levels (4 MB cart) were played
+60 s each with the pauses in ares: no crash, hang or error screen.
+
+Tried and left out: the renderer at `-O2` instead of `-Os`. Its hot code is in the 32X's SDRAM;
+`-O2` makes it 4 KB bigger, which the stack doesn't have (black screen), and with 6 KB of zone
+given up for a test it was *slower* (E6M4 6.3, E6M8 7.0 fps): bigger code misses the SH2's 4 KB
+cache more often. Even `-O2` on the renderer's cart code alone grew the SDRAM code 4 KB (inlining).
 
 ## The cart
 
@@ -133,6 +350,12 @@ Each takes about 5 minutes (converting PLUTONIA with the texture pack is the slo
 | 1 | the shared save area and other titles' data. Untouched, except DOOM's saves in **piece 11** and the loader's record in **piece 15** (test scratch) |
 | 2-6 | **the preload**: SOUNDS.WAD, DOOM.WAD, DOOM_II.WAD, RESURRECTION.WAD (10.1 MB of 10.3 MB) |
 | 7 | the game, second 2 MB (window 1 while the game runs) |
+
+**The 4 MB board** has no pages: the cart is the game's 4 MB, and the shared save area is its top
+64 KB (0x3F0000-0x3FFFFF, the same 16 pieces; DOOM's saves in piece 11). The loader copies a game
+there only when it ends below 0x3F0000 (`cd32x/sh2/cdloader_sh2.c`), else it shows "THIS DISC NEEDS
+THE 8 MB OR 16 MB RAM CART". The SIGIL disc and the `CART4=1` DOOM disc fit; the normal DOOM disc
+doesn't. No preload: the WADs are read from the CD.
 
 **How the game reads a preloaded WAD** (`d32xr/src-md/scd_fs.c`):
 - It reads from the cart instead of the CD: same bytes, no seeking.
@@ -219,6 +442,7 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
+| `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `p_tick.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c`, `r_phase8.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (both discs, `CD32X_IDLE`; README "Frame rate"). `r_data.c`: shorter sprite-setup error texts (room for them on the DOOM disc). |
 
 ## The boot stack
 
