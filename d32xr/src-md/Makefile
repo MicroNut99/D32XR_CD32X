@@ -23,6 +23,14 @@ HWCCFLAGS += -DCD32X
 CCFLAGS += -DCD32X
 ASFLAGS += --defsym CD32X=1
 endif
+# CD32X_ED=1: the Mega EverDrive PRO as the cart (crt0.s: its window registers, the write bit);
+# CD32X_PAGE=<n>: the game's page in window 1 (7; 1 on the EverDrive)
+ifdef CD32X_ED
+ASFLAGS += --defsym CD32X_ED=1
+endif
+ifdef CD32X_PAGE
+ASFLAGS += --defsym CD32X_PAGE=$(CD32X_PAGE)
+endif
 LINKFLAGS = -T $(LDSCRIPTSDIR)/mars-md.ld -Wl,-Map=output.map -nostdlib -Os -flto
 
 PREFIX = $(ROOTDIR)/m68k-elf/bin/m68k-elf-

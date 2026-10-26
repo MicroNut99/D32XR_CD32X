@@ -9,8 +9,27 @@
 | CD32X: the RAM cart (README.md). The game's first 2 MB are page 0 (window 0), its
 | second 2 MB page 7 (window 1, set by the Sub-CPU before the hand-over). Saves: the shared save
 | area's piece 11 (cart 0x3FB000 in page 1), seen by the 68000 at 0x400000 + offset with RV = 1.
-        .equ CD32X_PAGE_W, 0x0700   /* page 7 on D8-D10 of the window 1 register 0xA130F2 */
+| CD32X_PAGE (build.sh PAGE): the game's page in window 1 - 7 on the 16MB-PCB cart, 1 on the Mega
+| EverDrive PRO (CD32X_ED: page 7 would be its banks 28-31, 31 its battery RAM).
+.ifndef CD32X_PAGE
+        .equ CD32X_PAGE, 7
+.endif
+        .equ CD32X_PAGE_W, CD32X_PAGE<<8   /* the page on D8-D10 of the window 1 register 0xA130F2 */
         .equ CD32X_SAVE,   0x7FB000 /* 0x400000 + 0x3FB000 */
+| CD32X_ED: the Mega EverDrive PRO as the cart (CD32X BootCamp docs/12, MODE1-9).  Its pages are
+| four 512 KB banks in windows 4-7 (cart 0x200000-0x3FFFFF): page p = CTRL4..7 (0xA130F8-FE) =
+| 4p..4p+3, written with RV = 1 (set already wherever these run).  Its writes need the write bit
+| (CTRL0 bit 13) - on only inside write_sram's store, as the boot stack's listener does.
+        .macro  cart_w1_page page
+.ifdef CD32X_ED
+        move.w  #(\page)*4,0xA130F8
+        move.w  #(\page)*4+1,0xA130FA
+        move.w  #(\page)*4+2,0xA130FC
+        move.w  #(\page)*4+3,0xA130FE
+.else
+        move.w  #(\page)<<8,0xA130F2
+.endif
+        .endm
 .endif
 
         /* Z80 local mem variable offsets */
@@ -608,9 +627,9 @@ read_sram:
         lea     CD32X_SAVE,a0
         sh2_wait
         set_rv
-        move.w  #0x0100,0xA130F2    /* window 1 = page 1 (the save area) */
+        cart_w1_page 1              /* window 1 = page 1 (the save area) */
         move.b  0(a0,d0.l),d1
-        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
         bra.w   exit_rd_sram
 .endif
 |        cmpi.w  #2,megasd_ok
@@ -675,9 +694,15 @@ write_sram:
         lea     CD32X_SAVE,a0
         sh2_wait
         set_rv
-        move.w  #0x0100,0xA130F2    /* window 1 = page 1 (the save area) */
+        cart_w1_page 1              /* window 1 = page 1 (the save area) */
+.ifdef CD32X_ED
+        move.w  #0xA000,0xA130F0    /* ED: the write bit on, for this store only */
         move.b  d0,0(a0,d1.l)
-        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        move.w  #0x8000,0xA130F0    /* off */
+.else
+        move.b  d0,0(a0,d1.l)
+.endif
+        cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
         bra.w   exit_wr_sram
 .endif
 |        cmpi.w  #2,megasd_ok
@@ -760,8 +785,19 @@ cd32x_cart_copy:
         move.w  #0x2700,sr          /* disable ints */
         sh2_wait
         set_rv
+.ifdef CD32X_ED
+        lsl.w   #2,d3               /* ED: page -> bank 4p, CTRL4..7 */
+        move.w  d3,0xA130F8
+        addq.w  #1,d3
+        move.w  d3,0xA130FA
+        addq.w  #1,d3
+        move.w  d3,0xA130FC
+        addq.w  #1,d3
+        move.w  d3,0xA130FE
+.else
         lsl.w   #8,d3
         move.w  d3,0xA130F2         /* window 1 = the page (D8-D10) */
+.endif
         adda.l  #0x600000,a0        /* window 1 with RV = 1 */
         move.l  a0,d0
         move.l  a1,d1
@@ -782,7 +818,7 @@ cd32x_cart_copy:
         move.b  (a0)+,(a1)+
         bra.b   3b
 4:
-        move.w  #CD32X_PAGE_W,0xA130F2 /* window 1 = the game's page again */
+        cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
         clr_rv
         sh2_cont
         move.w  (sp)+,sr

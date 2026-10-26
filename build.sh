@@ -22,8 +22,20 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 trap 'echo; echo "*** BUILD FAILED at line $LINENO: $BASH_COMMAND"' ERR
-NAME="${NAME:-D32XR_CD32X_R2}"
-PAGE=7
+# CART=ED: the Mega EverDrive PRO as the 16 MB cart (CD32X BootCamp docs/12).  The game's second 2 MB
+#   go to page 1 (the 4 MB cart's place) instead of page 7, which would hold the EverDrive's bank 31
+#   (its battery RAM); the preload stays in pages 2-6.  The game's own 68000 program writes the
+#   EverDrive's window registers for its page switches (src-md/crt0.s CD32X_ED) and turns the write
+#   bit on for its saves.  Nothing persists past the EverDrive menu yet (saves, the preload record:
+#   the WADs are copied in at every boot).
+#   CART=ED EDCD=1 bash build.sh   -> discs/D32XR_CD32X_R2_cartED/ + cd32x/subcpu/EDCD_DOOM.32X, the
+#                                     launcher started from the EverDrive menu with the disc in the
+#                                     Sega CD (BOOTCAMP=<folder>, default ../CD32X-BootCamp)
+CART="${CART:-}"
+case "$CART" in ""|ED) ;; *) echo "*** CART is ED or unset - stopping"; exit 1;; esac
+NAME="${NAME:-D32XR_CD32X_R2${CART:+_cart$CART}}"
+PAGE=7; [ "$CART" = ED ] && PAGE=1
+GAME_ED=""; [ "$CART" = ED ] && GAME_ED="CD32X_ED=1 CD32X_PAGE=1"
 # the music (README "Music"): MUSIC=idkfa (default) - CD audio = Fusion's IDKFA soundtrack, SIGIL's
 # songs streamed from the data track; MUSIC=sigil - CD audio = SIGIL's and SIGIL II's songs
 MUSIC="${MUSIC:-idkfa}"
@@ -96,8 +108,9 @@ echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
-CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1
-python3 "$HERE/tools/prep_openlara_cd.py" "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
+CDONLY="$CDONLY" PRELOAD_H="$HERE/build/cd32x_preload.h" bash "$HERE/tools/build_game.sh" "$HERE/build/D32XR_CD32X.32x" CD32X=1 $GAME_ED
+PREP_MODE1=""; if [ "${EDCD:-0}" = 1 ]; then PREP_MODE1="--mode1"; fi   # MODE1-1 (EDCD=1, below): the RAM jump table too
+python3 "$HERE/tools/prep_openlara_cd.py" $PREP_MODE1 "$HERE/build/D32XR_CD32X.32x" "$ROMS/D32XR.32X"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" "$DATA/splash.png" "$ROMS/IMAGE.RAW"
@@ -147,3 +160,21 @@ printf "    the disc: %d sectors = %d:%02d of an 80:00 CD\n" $SECTORS $((SECTORS
 mkdir -p "$HERE/discs/$NAME" && mv -f "$NAME.bin" "$NAME.cue" "$HERE/discs/$NAME/"
 echo
 echo "==> done: discs/$NAME/$NAME.cue (with its .bin)"
+
+# EDCD=1 (MODE1-1, CD32X BootCamp docs/12): EDCD_DOOM.32X, made by the BootCamp's edboot/build_edcd.sh
+# around this disc's Sub-CPU program built a second time for the cartridge boot (MODE1=1 M1PAGE=1, in a
+# copy of cd32x/subcpu: the disc keeps the normal program)
+if [ "${EDCD:-0}" = 1 ]; then
+  BC="${BOOTCAMP:-$HERE/../CD32X-BootCamp}"
+  [ -f "$BC/edboot/build_edcd.sh" ] || { echo "*** EDCD=1 needs the CD32X BootCamp next to this folder (or BOOTCAMP=<folder>): not at $BC"; exit 1; }
+  echo "==> EDCD_DOOM.32X: the disc started from the EverDrive PRO (cartridge boot)"
+  T=$(mktemp -d); mkdir -p "$T/subcpu/ROMS" "$T/sh2"
+  find "$HERE/cd32x/subcpu" -maxdepth 1 -type f -exec cp {} "$T/subcpu/" \;
+  cp "$HERE/cd32x/sh2/CDLOADER.32x" "$T/sh2/"
+  ( cd "$T/subcpu" && make clean > /dev/null && make CDROMPlayer.bin MODE1=1 M1CTRL0=0x8000 M1PAGE=1 CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" > "$T/mode1.log" 2>&1 ) \
+    || { tail -20 "$T/mode1.log"; echo "*** the MODE1 Sub-CPU program did not build"; exit 1; }
+  bash "$BC/edboot/build_edcd.sh" "$T/subcpu/CDROMPlayer.bin" "$HERE/cd32x/sh2/CDLOADER.32x" "$HERE/cd32x/subcpu/EDCD_DOOM.32X"
+  rm -rf "$T"
+  echo "==> EDCD_DOOM.32X: $HERE/cd32x/subcpu/EDCD_DOOM.32X - copy it to the EverDrive's SD card and start it from the menu"
+  echo "    with the disc above in the Sega CD (not \"Run Mega-CD\")"
+fi
