@@ -41,7 +41,9 @@ CART="${CART:-}"
 case "$CART" in ""|ED) ;; *) echo "*** CART is ED or unset - stopping"; exit 1;; esac
 PAGE=7; [ "$CART" = ED ] && PAGE=1
 GAME_ED=""; [ "$CART" = ED ] && GAME_ED="CD32X_ED=1 CD32X_PAGE=1"
-EDSAVE_M1=""; EDSAVE_DEFS=""; [ "$CART" = ED ] && { EDSAVE_M1="M1SAVE=1"; EDSAVE_DEFS=" -DCART_EDSAVE"; export EDCD_SAVE=1; }   # ED-SAVE (above)
+# ED-SAVE (above) and ED-PAGE: -DCART_ED is what compiles the four word writes to CTRL4-7 into the
+# launcher's CMD 68 (the EverDrive ignores the single even byte the 16MB-PCB page register wants)
+EDSAVE_M1=""; EDSAVE_DEFS=""; [ "$CART" = ED ] && { EDSAVE_M1="M1SAVE=1"; EDSAVE_DEFS=" -DCART_EDSAVE -DCART_ED"; export EDCD_SAVE=1; }
 # the music (README "Music"): MUSIC=idkfa (default) - CD audio = Fusion's IDKFA soundtrack, SIGIL's
 # songs streamed from the data track; MUSIC=sigil - CD audio = SIGIL's and SIGIL II's songs
 MUSIC="${MUSIC:-idkfa}"
