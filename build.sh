@@ -185,8 +185,11 @@ python3 "$HERE/tools/prep_openlara_cd.py" $PREP_MODE1 "$HERE/build/D32XR_CD32X.3
 { [ -n "$ROMMAPS" ] || [ -n "${CART4:-}" ]; } && python3 "$HERE/tools/fit_4mb.py" "$ROMS/D32XR.32X" "$IWAD"
 python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D32XR.32X" "$HERE/cd32x/sh2/preload.h"
 echo "==> loading screen"
-if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" "$DATA/splash.png" "$ROMS/IMAGE.RAW"
-else                               python3 "$HERE/tools/make_splash.py" - "$ROMS/IMAGE.RAW"; fi
+# --ed: "LOADING GAME" instead of "FIRST TIME: COPYING ..." - the EverDrive's PSRAM has no battery and
+# its menu wipes banks 0-29, so every boot is the first one (MicroNut99, 26 Oct 2026)
+SPLASH_ED=""; [ "$CART" = ED ] && SPLASH_ED="--ed"
+if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" $SPLASH_ED "$DATA/splash.png" "$ROMS/IMAGE.RAW"
+else                               python3 "$HERE/tools/make_splash.py" $SPLASH_ED - "$ROMS/IMAGE.RAW"; fi
 echo "==> SH2 loader"
 cd "$HERE/cd32x/sh2" && make -f Makefile.cdloader clean > /dev/null \
   && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=1 -DCDL_D32XR_PAGE=$PAGE"

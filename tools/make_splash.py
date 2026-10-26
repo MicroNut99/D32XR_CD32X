@@ -64,6 +64,12 @@ FONT = {
 STRIP_H = 9          # lines of the text strip (the loader copies it to lines 214-222)
 STRIP_TEXTS = ['FIRST TIME: COPYING DOOM INTO THE RAM CART',     # 0: the cart does not hold it (yet)
                'THIS DISC NEEDS THE 8 MB OR 16 MB RAM CART']      # 1: a 4 MB cart (the loader stops)
+# --ed (build.sh CART=ED): on the Mega EverDrive PRO there is no first time.  Its PSRAM has no
+# battery, and the EverDrive's menu wipes banks 0-29 every time it runs, so the game and the WADs
+# are copied in at every boot and strip 0's "FIRST TIME" would be untrue on every one of them
+# (MicroNut99, 26 Oct 2026).  Only the words change; the loader and the layout are the same.
+STRIP_TEXTS_ED = ['LOADING GAME',
+                  'THIS DISC NEEDS THE 8 MB OR 16 MB RAM CART']
 
 
 def text_strip(text, colour, back):
@@ -94,8 +100,12 @@ def to32x(r, g, b):
 
 
 def main():
-    if len(sys.argv) != 3:
+    argv = [a for a in sys.argv[1:] if a != '--ed']
+    texts = STRIP_TEXTS_ED if '--ed' in sys.argv[1:] else STRIP_TEXTS
+    if len(argv) != 2:
         sys.exit(__doc__)
+    argv = ['make_splash.py'] + argv
+    sys.argv = argv
     pix = bytearray([BLACK]) * (W * H)
     pal = [(0, 0, 0)] * 256
     if sys.argv[1] != '-':
@@ -112,7 +122,7 @@ def main():
     out = bytes(pix) + b''.join(struct.pack('>H', to32x(*rgb)) for rgb in pal)
     # after the palette: the lines the loader can show under the bar (STRIP_TEXTS), text 255,
     # back 252
-    for text in STRIP_TEXTS:
+    for text in texts:
         out += bytes(text_strip(text, 255, BLACK))
     open(sys.argv[2], 'wb').write(out)
     print('loading screen: %s (%d bytes)' % (sys.argv[2], len(out)))
