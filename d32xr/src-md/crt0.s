@@ -20,6 +20,15 @@
 | four 512 KB banks in windows 4-7 (cart 0x200000-0x3FFFFF): page p = CTRL4..7 (0xA130F8-FE) =
 | 4p..4p+3, written with RV = 1 (set already wherever these run).  Its writes need the write bit
 | (CTRL0 bit 13) - on only inside write_sram's store, as the boot stack's listener does.
+| ED-SAVE (CD32X_ED): the EverDrive wipes its PSRAM (banks 0-30) at its menu, so page 1's save area
+| would not outlive a relaunch.  Bank 31 is its battery RAM, kept on the SD card by its OS when the
+| launcher's header declares save RAM (MEGA/gamedata/EDCD_DOOM.32X/bram.srm).  The save (piece 11)
+| and the CD loader's preload record (piece 15; the loader's Sub-CPU program writes it there too,
+| CART_EDSAVE) are in that bank instead, at the same piece offsets: CTRL1 (0xA130F2, the 512 KB
+| window at cart 0x080000, bank 1 = the ROM's 0x080000-0x0FFFFF otherwise) = bank 31 for the access,
+| the byte at 0x400000 + 0x080000 + piece * 4 KB + offset, CTRL1 = bank 1 again - the boot stack's
+| MODE1-7 route (hw_md.s).  Interrupts are off and both SH2s wait in SDRAM meanwhile (sh2_wait).
+        .equ CD32X_EDSAVE, 0x480000 /* 0x400000 + 0x080000: bank 31 through CTRL1 */
         .macro  cart_w1_page page
 .ifdef CD32X_ED
         move.w  #(\page)*4,0xA130F8
@@ -624,12 +633,21 @@ read_sram:
 | page 1). With RV = 1 the 68000 sees the cart at 0x400000 (mega CD mode 2). Window 1 shows the
 | game's own page (7) while it runs: page 1 for the access, then page 7 again. The SH2s wait
 | in their command interrupt meanwhile (sh2_wait), as for the cartridge's save RAM.
+.ifdef CD32X_ED
+        lea     CD32X_EDSAVE+0xB000,a0  /* ED-SAVE: piece 11 in the save bank (bank 31) */
+        sh2_wait
+        set_rv
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.b  0(a0,d0.l),d1
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+.else
         lea     CD32X_SAVE,a0
         sh2_wait
         set_rv
         cart_w1_page 1              /* window 1 = page 1 (the save area) */
         move.b  0(a0,d0.l),d1
         cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
+.endif
         bra.w   exit_rd_sram
 .endif
 |        cmpi.w  #2,megasd_ok
@@ -691,18 +709,23 @@ write_sram:
         move.w  0xA15122,d1         /* COMM2 holds offset */
 .ifdef CD32X
 | CD32X: into the RAM cart's save area, piece 11 (see read_sram)
+.ifdef CD32X_ED
+        lea     CD32X_EDSAVE+0xB000,a0  /* ED-SAVE: piece 11 in the save bank (bank 31) */
+        sh2_wait
+        set_rv
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.w  #0xA000,0xA130F0    /* ED: the write bit on, for this store only */
+        move.b  d0,0(a0,d1.l)
+        move.w  #0x8000,0xA130F0    /* off */
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+.else
         lea     CD32X_SAVE,a0
         sh2_wait
         set_rv
         cart_w1_page 1              /* window 1 = page 1 (the save area) */
-.ifdef CD32X_ED
-        move.w  #0xA000,0xA130F0    /* ED: the write bit on, for this store only */
         move.b  d0,0(a0,d1.l)
-        move.w  #0x8000,0xA130F0    /* off */
-.else
-        move.b  d0,0(a0,d1.l)
-.endif
         cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
+.endif
         bra.w   exit_wr_sram
 .endif
 |        cmpi.w  #2,megasd_ok
@@ -779,6 +802,9 @@ cd32x_cart_copy:
         movem.l d2-d4,-(sp)
         movea.l 16(sp),a1           /* dst */
         move.l  20(sp),d3           /* page */
+.ifdef CD32X_ED
+        move.l  d3,d2               /* ED-SAVE: the page, for the save-area test below */
+.endif
         movea.l 24(sp),a0           /* offset */
         move.l  28(sp),d4           /* length */
         move.w  sr,-(sp)
@@ -799,6 +825,17 @@ cd32x_cart_copy:
         move.w  d3,0xA130F2         /* window 1 = the page (D8-D10) */
 .endif
         adda.l  #0x600000,a0        /* window 1 with RV = 1 */
+.ifdef CD32X_ED
+| ED-SAVE: page 1's save area (window offset 0x1F0000 on: the preload record, piece 15) is in bank
+| 31 - read through CTRL1 instead (0x480000 + offset - 0x1F0000); CTRL1 = bank 1 again at the end.
+        cmpi.l  #1,d2               /* the page */
+        bne.b   0f
+        cmpa.l  #0x600000+0x1F0000,a0
+        blo.b   0f
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        suba.l  #0x600000+0x1F0000-CD32X_EDSAVE,a0
+0:
+.endif
         move.l  a0,d0
         move.l  a1,d1
         or.l    d1,d0
@@ -818,6 +855,9 @@ cd32x_cart_copy:
         move.b  (a0)+,(a1)+
         bra.b   3b
 4:
+.ifdef CD32X_ED
+        move.w  #1,0xA130F2         /* ED-SAVE: CTRL1 = bank 1 again (its state anyway when the copy was a page's) */
+.endif
         cart_w1_page CD32X_PAGE     /* window 1 = the game's page again */
         clr_rv
         sh2_cont

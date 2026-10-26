@@ -26,8 +26,13 @@ trap 'echo; echo "*** BUILD FAILED at line $LINENO: $BASH_COMMAND"' ERR
 #   go to page 1 (the 4 MB cart's place) instead of page 7, which would hold the EverDrive's bank 31
 #   (its battery RAM); the preload stays in pages 2-6.  The game's own 68000 program writes the
 #   EverDrive's window registers for its page switches (src-md/crt0.s CD32X_ED) and turns the write
-#   bit on for its saves.  Nothing persists past the EverDrive menu yet (saves, the preload record:
-#   the WADs are copied in at every boot).
+#   bit on for its saves.  ED-SAVE (always with CART=ED): the save (piece 11) and the CD loader's
+#   preload record (piece 15) are in the EverDrive's save bank (bank 31, its battery RAM) instead of
+#   page 1, which the EverDrive wipes at its menu - the game's 68000 program reads and writes the bank
+#   itself (crt0.s), the launcher's Sub-CPU program routes CMD 61 there (CART_EDSAVE, listener M1SAVE=1)
+#   and the launcher's header declares save RAM (EDCD_SAVE=1 -> make_edcd.py; kept on the SD card as
+#   MEGA/gamedata/EDCD_DOOM.32X/bram.srm).  The saves persist; the WADs (10 MB of PSRAM, pages 2-6)
+#   are still copied in at every boot - nothing can keep them.
 #   CART=ED EDCD=1 bash build.sh   -> discs/D32XR_CD32X_R2_cartED/ + cd32x/subcpu/EDCD_DOOM.32X, the
 #                                     launcher started from the EverDrive menu with the disc in the
 #                                     Sega CD (BOOTCAMP=<folder>, default ../CD32X-BootCamp)
@@ -36,6 +41,7 @@ case "$CART" in ""|ED) ;; *) echo "*** CART is ED or unset - stopping"; exit 1;;
 NAME="${NAME:-D32XR_CD32X_R2${CART:+_cart$CART}}"
 PAGE=7; [ "$CART" = ED ] && PAGE=1
 GAME_ED=""; [ "$CART" = ED ] && GAME_ED="CD32X_ED=1 CD32X_PAGE=1"
+EDSAVE_M1=""; EDSAVE_DEFS=""; [ "$CART" = ED ] && { EDSAVE_M1="M1SAVE=1"; EDSAVE_DEFS=" -DCART_EDSAVE"; export EDCD_SAVE=1; }   # ED-SAVE (above)
 # the music (README "Music"): MUSIC=idkfa (default) - CD audio = Fusion's IDKFA soundtrack, SIGIL's
 # songs streamed from the data track; MUSIC=sigil - CD audio = SIGIL's and SIGIL II's songs
 MUSIC="${MUSIC:-idkfa}"
@@ -171,7 +177,7 @@ if [ "${EDCD:-0}" = 1 ]; then
   T=$(mktemp -d); mkdir -p "$T/subcpu/ROMS" "$T/sh2"
   find "$HERE/cd32x/subcpu" -maxdepth 1 -type f -exec cp {} "$T/subcpu/" \;
   cp "$HERE/cd32x/sh2/CDLOADER.32x" "$T/sh2/"
-  ( cd "$T/subcpu" && make clean > /dev/null && make CDROMPlayer.bin MODE1=1 M1CTRL0=0x8000 M1PAGE=1 CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" > "$T/mode1.log" 2>&1 ) \
+  ( cd "$T/subcpu" && make clean > /dev/null && make CDROMPlayer.bin MODE1=1 M1CTRL0=0x8000 M1PAGE=1 $EDSAVE_M1 CART_DEFS="-DCART_PAGED$EDSAVE_DEFS" GAME_DEFS="-DD32XR_CD=$PAGE" > "$T/mode1.log" 2>&1 ) \
     || { tail -20 "$T/mode1.log"; echo "*** the MODE1 Sub-CPU program did not build"; exit 1; }
   bash "$BC/edboot/build_edcd.sh" "$T/subcpu/CDROMPlayer.bin" "$HERE/cd32x/sh2/CDLOADER.32x" "$HERE/cd32x/subcpu/EDCD_DOOM.32X"
   rm -rf "$T"

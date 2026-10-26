@@ -274,9 +274,21 @@ static int cur_img = 0;
    safe_cart_xfer (routine 26: interrupts off, RV = 1), one even byte to 0xA130F2, as the ledger's
    section 7 registers it - no listener change). */
 static uint32_t cur_dest = 0xFFFFFFFFu;
+#ifdef CART_EDSAVE
+/* ED-SAVE (CART_EDSAVE, the EverDrive launcher's program only - build.sh CART=ED EDCD=1): page 1's save
+   area (pieces 0-15, cart 0x3F0000 + piece * 4 KB) lives in the EverDrive's save bank instead - bank 31,
+   kept on the SD card - which the listener (MODE1-7, M1SAVE=1) reaches as cart 0x800000: CMD 61 (the CD
+   loader's board markers and its "D32XR PRELOAD OK" record) writes it there while window 1 shows page 1.
+   The game's own 68000 program reads and writes the same bank itself (d32xr/src-md/crt0.s CD32X_ED).
+   The EverDrive wipes its PSRAM at its menu (OpenLara CD32X EDSAVE-1; CD32X BootCamp docs/12). */
+static int ed_page = 1;                            /* what window 1 shows (1 after the boot) */
+#endif
 static void cart_page_write(int page)
 {
     volatile uint8_t *wr = (volatile uint8_t *)0x0C0000;
+#ifdef CART_EDSAVE
+    ed_page = page;
+#endif
     wr[0] = (uint8_t)page;                         /* the byte, in Word RAM */
     switch_banks();                                /* Word RAM -> 68000 (0x200000) */
     do_md_cmd3(MD_CMD_SAFE_CART_XFER, 0x200000, 0xA130F2, 1);   /* ledger section 7: routine 26 (interrupts off, RV = 1) */
@@ -1116,15 +1128,28 @@ int main(void)
             volatile uint8_t *wr = (volatile uint8_t *)0x0C0000;
             for (k = 0; k < 4096; k++) wr[k] = bram_buf[k];
             switch_banks();
-            do_md_cmd3(MD_CMD_CHILLY_RV_MEMCPY, 0x400000 + coff, 0x200000, 4096);
-            do_md_cmd2(MD_CMD_WRITE_32X_16, 0xA15104, (int)(coff >> 20) & 3);
-            do_md_cmd3(MD_CMD_CHILLY_MEMCPY, 0x208000, 0x900000 + (coff & 0xFFFFF), 4096);
+#ifdef CART_EDSAVE
+            if (ed_page == 1) {
+                /* ED-SAVE: into the EverDrive's save bank and back out of it (the listener's window-1
+                   route: RV = 1, the write bit on for the write only) */
+                do_md_cmd3(MD_CMD_CHILLY_RV_MEMCPY, 0x800000 + (uint32_t)piece * 4096, 0x200000, 4096);
+                do_md_cmd3(MD_CMD_CHILLY_RV_MEMCPY, 0x208000, 0x800000 + (uint32_t)piece * 4096, 4096);
+            } else
+#endif
+            {
+                do_md_cmd3(MD_CMD_CHILLY_RV_MEMCPY, 0x400000 + coff, 0x200000, 4096);
+                do_md_cmd2(MD_CMD_WRITE_32X_16, 0xA15104, (int)(coff >> 20) & 3);
+                do_md_cmd3(MD_CMD_CHILLY_MEMCPY, 0x208000, 0x900000 + (coff & 0xFFFFF), 4096);
+            }
             switch_banks();
             {
                 volatile uint8_t *cart = (volatile uint8_t *)0x0C8000;
                 for (k = 0; k < 4096; k++)
                     if (cart[k] != bram_buf[k]) { ok = 0; break; }
             }
+#ifdef CART_EDSAVE
+            if (ok && ed_page == 1) ok |= 0x200;        /* ED-SAVE: it went to the save bank */
+#endif
             do_md_cmd2(MD_CMD_WRITE_32X_16, 0xA1512C, ok);
             do_md_cmd2(MD_CMD_WRITE_32X_16, 0xA15120, 0);
         }
