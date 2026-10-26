@@ -65,7 +65,10 @@ if [ "$CART" = ED ]; then
   [ "$MUSIC" = sigil ] && ED_TAG="${ED_TAG}_SIGIL"
   [ -n "${ROMMAPS:-}" ] && ED_TAG="${ED_TAG}_ROMMAPS"
 fi
-NAME="${NAME:-D32XR_CD32X_R2$ED_TAG}"
+# The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
+# so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
+# called Mumra, with no EDCD tag on it at all.
+NAME="${DISC_NAME:-D32XR_CD32X_R2$ED_TAG}"
 if [ "$CART" = ED ]; then
   EDCD_32X="EDCD_DOOM${ED_TAG#_EDCD_DOOM}.32X"    # EDCD_DOOM.32X, EDCD_DOOM_SIGIL.32X, ...
 else
@@ -247,6 +250,7 @@ if [ "${EDCD:-0}" = 1 ]; then
   cp "$HERE/cd32x/sh2/CDLOADER.32x" "$T/sh2/"
   ( cd "$T/subcpu" && make clean > /dev/null && make CDROMPlayer.bin MODE1=1 M1CTRL0=0x8000 M1PAGE=1 $EDSAVE_M1 CART_DEFS="-DCART_PAGED$EDSAVE_DEFS" GAME_DEFS="-DD32XR_CD=$PAGE" > "$T/mode1.log" 2>&1 ) \
     || { tail -20 "$T/mode1.log"; echo "*** the MODE1 Sub-CPU program did not build"; exit 1; }
+  echo "    MODE1 program: M1PAGE=1 ${EDSAVE_M1:-(no M1SAVE)} CART_DEFS=\"-DCART_PAGED$EDSAVE_DEFS\"${EDCD_SAVE:+, EDCD_SAVE=$EDCD_SAVE (the RA header)}"
   bash "$BC/edboot/build_edcd.sh" "$T/subcpu/CDROMPlayer.bin" "$HERE/cd32x/sh2/CDLOADER.32x" "$HERE/cd32x/subcpu/$EDCD_32X"
   rm -rf "$T"
   echo "==> $EDCD_32X: $HERE/cd32x/subcpu/$EDCD_32X - copy it to the EverDrive's SD card and start it from the menu"
