@@ -194,12 +194,17 @@ python3 "$HERE/tools/make_preload.py" loader "$HERE/build/preload.json" "$ROMS/D
 echo "==> loading screen"
 # --ed: "LOADING GAME" instead of "FIRST TIME: COPYING ..." - the EverDrive's PSRAM has no battery and
 # its menu wipes banks 0-29, so every boot is the first one (MicroNut99, 26 Oct 2026)
+# LOADER_DIAG=1: the loading screen OFF, so the Sub-CPU's green status text shows through - STATE:4Cnn
+# is the ROM chunk being copied, 4C00-4C7F, then the preload's.  For a load that stops: the number says
+# where, and whether it is still moving behind a picture that has stopped being redrawn.  The 32X layer
+# is what the splash draws on, and the loader's own waits for it are the only unbounded ones in the copy.
+CDL_SPLASH=1; [ "${LOADER_DIAG:-0}" = 1 ] && CDL_SPLASH=0
 SPLASH_ED=""; [ "$CART" = ED ] && SPLASH_ED="--ed"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" $SPLASH_ED "$DATA/splash.png" "$ROMS/IMAGE.RAW"
 else                               python3 "$HERE/tools/make_splash.py" $SPLASH_ED - "$ROMS/IMAGE.RAW"; fi
 echo "==> SH2 loader"
 cd "$HERE/cd32x/sh2" && make -f Makefile.cdloader clean > /dev/null \
-  && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=1 -DCDL_D32XR_PAGE=$PAGE"
+  && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=$CDL_SPLASH -DCDL_D32XR_PAGE=$PAGE"
 echo "==> Sub-CPU and 68000 listener"
 cd "$HERE/cd32x/subcpu" && make clean > /dev/null \
   && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DISC"
