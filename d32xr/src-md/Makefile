@@ -31,6 +31,15 @@ endif
 ifdef CD32X_PAGE
 ASFLAGS += --defsym CD32X_PAGE=$(CD32X_PAGE)
 endif
+# CD32X_MODE1=1 (build.sh EDCD=1): the disc is started from the EverDrive PRO, so the console stays in
+# cartridge mode ("mode 1") and the map is the mirror of a CD boot's - the Mega CD at 0x400000 (Word RAM
+# 0x600000) and the cart at 0x000000.  The game's own 68000 code addresses both directly (scd*.c, vgm.c,
+# crt0.s), so that disc needs its own ROM.  Without it the file list comes back empty on the EverDrive.
+ifdef CD32X_MODE1
+HWCCFLAGS += -DCD32X_MODE1
+CCFLAGS += -DCD32X_MODE1
+ASFLAGS += --defsym CD32X_MODE1=1
+endif
 LINKFLAGS = -T $(LDSCRIPTSDIR)/mars-md.ld -Wl,-Map=output.map -nostdlib -Os -flto
 
 PREFIX = $(ROOTDIR)/m68k-elf/bin/m68k-elf-

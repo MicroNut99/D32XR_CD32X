@@ -19,7 +19,10 @@
 
 #define VGM_MAX_RF5C68_LOOPS 10
 
-#ifdef CD32X
+/* CD32X_MODE1 (build.sh EDCD=1): the disc is started from a cartridge (the EverDrive PRO), so the console
+   stays in mode 1 and the Mega CD is where it is without a CD boot - the same addresses as a plain 32X
+   cartridge build, not mode 2's. */
+#if defined(CD32X) && !defined(CD32X_MODE1)
 #define MD_WORDRAM          (void*)0x200000 /* word RAM on the MD in mega CD mode 2 (the disc booted) */
 #else
 #define MD_WORDRAM          (void*)0x600000

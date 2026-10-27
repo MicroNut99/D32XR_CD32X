@@ -6,7 +6,10 @@
 /* CD32X: the disc booted (Mega CD mode 2), so the Mega CD sits at 0x000000 (BIOS ROM 0x000000,
    Program RAM window 0x020000, Word RAM 0x200000) instead of 0x400000 / 0x420000 / 0x600000
    as when a cartridge booted (mode 1). */
-#ifdef CD32X
+/* CD32X_MODE1 (build.sh EDCD=1): the disc is started from a cartridge (the EverDrive PRO), so the console
+   stays in mode 1 and the Mega CD is where it is without a CD boot - the same addresses as a plain 32X
+   cartridge build, not mode 2's. */
+#if defined(CD32X) && !defined(CD32X_MODE1)
 #define MCD_BASE 0x000000
 #else
 #define MCD_BASE 0x400000

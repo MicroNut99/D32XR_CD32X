@@ -15,7 +15,20 @@
         .equ CD32X_PAGE, 7
 .endif
         .equ CD32X_PAGE_W, CD32X_PAGE<<8   /* the page on D8-D10 of the window 1 register 0xA130F2 */
-        .equ CD32X_SAVE,   0x7FB000 /* 0x400000 + 0x3FB000 */
+| CD32X_MODE1 (build.sh EDCD=1): the disc is started from the EverDrive PRO, so the console stays in
+| cartridge mode ("mode 1") and the two maps are mirror images - the cart at 0x000000-0x3FFFFF and the
+| Mega CD at 0x400000 (Word RAM 0x600000), where a CD boot has the Mega CD at 0x000000 (Word RAM
+| 0x200000) and the cart at 0x400000 with RV = 1.  Every cart address below is CD32X_CART + offset.
+        .ifndef CD32X_MODE1
+        .equ CD32X_MODE1, 0
+        .endif
+        .if CD32X_MODE1
+        .equ CD32X_CART,   0x000000
+        .else
+        .equ CD32X_CART,   0x400000
+        .endif
+        .equ CD32X_W1,     CD32X_CART+0x200000  /* window 1 of the paged cart (its 0x200000-0x3FFFFF) */
+        .equ CD32X_SAVE,   CD32X_CART+0x3FB000
 | CD32X_ED: the Mega EverDrive PRO as the cart (CD32X BootCamp docs/12, MODE1-9).  Its pages are
 | four 512 KB banks in windows 4-7 (cart 0x200000-0x3FFFFF): page p = CTRL4..7 (0xA130F8-FE) =
 | 4p..4p+3, written with RV = 1 (set already wherever these run).  Its writes need the write bit
@@ -28,7 +41,7 @@
 | window at cart 0x080000, bank 1 = the ROM's 0x080000-0x0FFFFF otherwise) = bank 31 for the access,
 | the byte at 0x400000 + 0x080000 + piece * 4 KB + offset, CTRL1 = bank 1 again - the boot stack's
 | MODE1-7 route (hw_md.s).  Interrupts are off and both SH2s wait in SDRAM meanwhile (sh2_wait).
-        .equ CD32X_EDSAVE, 0x480000 /* 0x400000 + 0x080000: bank 31 through CTRL1 */
+        .equ CD32X_EDSAVE, CD32X_CART+0x080000 /* bank 31 through CTRL1 */
         .macro  cart_w1_page page
 .ifdef CD32X_ED
         move.w  #(\page)*4,0xA130F8
@@ -824,16 +837,16 @@ cd32x_cart_copy:
         lsl.w   #8,d3
         move.w  d3,0xA130F2         /* window 1 = the page (D8-D10) */
 .endif
-        adda.l  #0x600000,a0        /* window 1 with RV = 1 */
+        adda.l  #CD32X_W1,a0        /* window 1 with RV = 1 */
 .ifdef CD32X_ED
 | ED-SAVE: page 1's save area (window offset 0x1F0000 on: the preload record, piece 15) is in bank
 | 31 - read through CTRL1 instead (0x480000 + offset - 0x1F0000); CTRL1 = bank 1 again at the end.
         cmpi.l  #1,d2               /* the page */
         bne.b   0f
-        cmpa.l  #0x600000+0x1F0000,a0
+        cmpa.l  #CD32X_W1+0x1F0000,a0
         blo.b   0f
         move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
-        suba.l  #0x600000+0x1F0000-CD32X_EDSAVE,a0
+        suba.l  #CD32X_W1+0x1F0000-CD32X_EDSAVE,a0
 0:
 .endif
         move.l  a0,d0
