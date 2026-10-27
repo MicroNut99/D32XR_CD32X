@@ -248,6 +248,7 @@ Fusion), part of it in stack space the game never reaches.
 | `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
 | `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `art/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
 | `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
+| `CART=ED EDCD=1` | both | the **Mega EverDrive PRO** build: the EverDrive as the 16 MB cart, plus the launcher `EDCD_DOOM.32X` for its SD card (start that with the disc in the Sega CD, not "Run Mega-CD"). The ROM is built for the cartridge boot's map, so that disc is EverDrive-only - README "The two memory maps" |
 | `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
@@ -414,6 +415,59 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 - The untouched Resurrection v3.5 ROM, for comparison: clean.
 - The build before the fix: the band.
 
+## The melt bug, second cause: the column store in a cartridge boot (EverDrive, 26 Oct 2026)
+
+**What you see:** on the EverDrive build (`CART=ED EDCD=1`) the melt is broken - its pictures are
+garbage - while the same disc's CD boot is clean. Nothing to do with the fire or the first melt bug
+above, whose fix is still in place.
+
+**The cause** (`d32xr/src-md/crt0.s`, `cpy_md_vram`): the melt keeps its starting and ending pictures
+in Mega Drive VRAM, a column at a time -
+
+```
+wipe_StartScreen -> I_StoreScreenCopy -> Mars_StoreWordColumnInMDVRAM
+wipe_EndScreen   -> I_SwapScreenCopy  -> Mars_SwapWordColumnWithMDVRAM
+                                            -> crt0.s cpy_md_vram -> lea COL_STORE,a0
+```
+
+`COL_STORE` is "Word RAM + 2 KB", and it was chosen by `.ifdef CD32X` alone: `0x200800`, which is where
+Word RAM is **when the disc boots** (mode 2). Started from the EverDrive the console stays in cartridge
+mode, where `0x200800` is the **cart**: the column writes land nowhere and the reads come back as ROM
+bytes, so every picture the melt saves is garbage.
+
+**The fix:** `COL_STORE` follows `CD32X_MODE1` like the rest of the mode-dependent addresses -
+`0x600800` in a cartridge boot. Commit `6378b4f`, completing `d0aa18f`.
+
+**How it was found:** the first melt bug's write-up above says the melt's starting picture is whatever
+is on screen when it begins, so the search started at what fills that picture - and that path ends in
+`cpy_md_vram`, one of the five places in the game's own 68000 code that name a Mega CD address. The
+same question had already been asked of `scd*.c` and `vgm.c` for the "No playable WADs found on the CD"
+bug; `COL_STORE` was the one that was missed, because it is an `.equ` in `crt0.s` rather than a
+`#define` beside the others.
+
+## The two memory maps (`CD32X_MODE1`)
+
+A CD boot and a cartridge boot are mirror images, and the game's own 68000 code addresses both sides
+directly, so the EverDrive disc needs its own ROM:
+
+| | Mega CD | Word RAM | the cart |
+|---|---|---|---|
+| the disc booted (mode 2), `CD32X=1` | `0x000000` | `0x200000` | `0x400000` with RV = 1 |
+| started from the EverDrive (mode 1), `CD32X_MODE1=1` | `0x400000` | `0x600000` | `0x000000` |
+
+`build.sh` sets `CD32X_MODE1=1` when `EDCD=1`, the same way it passes `CD32X_ED` and `CD32X_PAGE`
+(`src-md/Makefile`: `-DCD32X_MODE1` and `--defsym CD32X_MODE1=1`). It reaches `MCD_BASE` (`scd.c`),
+`MD_WORDRAM` (`scd_fs.c`, `scd_roq.c`, `vgm.c`), `SCD_PCM_WORDRAM` (`scd_pcm.c`) and, in `crt0.s`,
+`CD32X_CART` with `CD32X_W1`, `CD32X_SAVE`, `CD32X_EDSAVE` and `COL_STORE` derived from it.
+
+Without it the game reads its disc-directory buffer at `0x200000` - the cart in that mode - finds
+nothing and stops with **"No playable WADs found on the CD"** (`gs_main.c`), after the WADs have loaded
+perfectly well. That was the EverDrive build's symptom until 26 Oct 2026, in ares and on the console
+alike.
+
+**The EverDrive disc is therefore EverDrive-only**: its ROM is built for mode 1 and will not boot from
+the Sega CD by itself. The CD-boot disc is unchanged, byte for byte.
+
 ## Music in detail
 
 **CD audio** (`d32xr/marssound.c`, `marshw.c`, `d_mapinfo.*`, under `CD32X`):
@@ -439,6 +493,8 @@ That is why Resurrection v3.5 (fire, no CD) and the Fusion release (CD, no fire)
 | `d32xr/src-md/main.c`, `Makefile` | No MegaSD / EverDrive code. |
 | `d32xr/m_fire.c`, `Makefile` | `FIRE_TIME`: the fire and v3.5's title time for Resurrection only. |
 | `d32xr/d_main.c` | The melt bug: the screen backup around `M_Start` kept with the CD. |
+| `d32xr/src-md/scd*.c`, `vgm.c`, `crt0.s`, `Makefile` | `CD32X_MODE1`: the cartridge boot's map for the EverDrive disc (README "The two memory maps"). |
+| `d32xr/src-md/crt0.s` | The melt bug's second cause: `COL_STORE` follows the boot mode (README "The melt bug, second cause"). |
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
