@@ -120,10 +120,14 @@
         .equ MARS_PWM_CYCLE,   0xA15132
         .equ MARS_PWM_MONO,    0xA15138
 
+.if CD32X_MODE1
+        .equ COL_STORE, 0x600800    /* WORD RAM + 2K (a cartridge boot: word RAM at 0x600000) */
+.else
 .ifdef CD32X
         .equ COL_STORE, 0x200800    /* WORD RAM + 2K (mega CD mode 2: word RAM at 0x200000) */
 .else
         .equ COL_STORE, 0x600800    /* WORD RAM + 2K */
+.endif
 .endif
 
         .equ NET_PORT,  0xA10005    /* port 2 data    (use 0xA10007 for EXT port) */
