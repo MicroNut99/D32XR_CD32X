@@ -221,6 +221,15 @@ void I_Error (char *error, ...)
 	D_vsnprintf(errormessage, sizeof(errormessage), error, ap);
 	va_end(ap);
 
+#ifdef CD32X
+	/* CD32X (27 Oct 2026): make the message readable wherever the error happens.  I_Error is reached
+	   before I_Init has set the 32X video up at all (D_DoomMain: C_Init, Z_Init, W_Init all run first),
+	   and the cinematic intro leaves the display in 32K direct-colour mode (marsroq.c) - so an error in
+	   that window printed 8-bit text into a 15-bit frame buffer with no line table and then span for
+	   ever: a black screen, and whatever it was trying to say never reached the eye.  Mars_InitVideo
+	   sets the 256-colour mode, the line table and both buffers, so the text below shows. */
+	Mars_InitVideo(224);
+#endif
 	I_ClearFrameBuffer();
 	I_Print8 (0,20,errormessage);
 	I_Update ();
