@@ -30,7 +30,6 @@ Imps on MAP25) where DOOM II has Pain Elementals. This makes them from your doom
       the three are made at the highest rate that then fits.
 """
 import argparse, os, struct, sys
-from fractions import Fraction
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -301,9 +300,15 @@ def voc_file(tc, ref, codes):
 
 
 def resample(x, rate_in, rate_out):
-    from scipy.signal import resample_poly
-    fr = Fraction(rate_out / rate_in).limit_denominator(2000)
-    y = resample_poly(np.asarray(x, float) - 128.0, fr.numerator, fr.denominator)
+    """band-limited resampling by the spectrum (numpy only; no SciPy needed)"""
+    x = np.asarray(x, float) - 128.0
+    n = len(x)
+    m = int(round(n * rate_out / rate_in))
+    X = np.fft.rfft(x)
+    Y = np.zeros(m // 2 + 1, complex)
+    k = min(len(X), len(Y))
+    Y[:k] = X[:k]
+    y = np.fft.irfft(Y, m) * (m / n)
     return np.clip(y + 128.0, 0, 255)
 
 
