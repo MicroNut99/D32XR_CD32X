@@ -380,6 +380,12 @@ void Mars_WriteSRAM(const uint8_t* buffer, int offset, int len)
 		MARS_SYS_COMM0 = 0x0200 | *ptr++;    /* Write SRAM */
 		while (MARS_SYS_COMM0);
 	}
+#ifdef CD32X_BRAMSAVE
+	/* CD32X BRAMSAVE (build.sh BRAMSAVE=1): the bytes went to the 68000's copy of the save; this writes
+	   that copy to the Sega CD's backup RAM (src-md/crt0.s sram_commit_req) */
+	MARS_SYS_COMM0 = 0x0F00;
+	while (MARS_SYS_COMM0);
+#endif
 }
 
 static char *Mars_StringToFramebuffer(const char *str)

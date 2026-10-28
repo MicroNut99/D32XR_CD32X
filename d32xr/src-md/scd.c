@@ -368,3 +368,78 @@ uint16_t InitCD(void)
 
     return 0x1; // CD ready to go!
 }
+
+#ifdef CD32X_BRAMSAVE
+/* CD32X BRAMSAVE (build.sh BRAMSAVE=1; crt0.s read_sram has the whole story): the save as a file in the Sega
+   CD's backup RAM, through the Sub-CPU (cd/crt.s commands '\\' and ']', cd/s_main.c) and Word RAM */
+#define SRAM_BYTES 2048
+uint8_t sram_shadow[SRAM_BYTES];
+uint8_t sram_loaded, sram_dirty, sram_mode;   /* sram_mode 1: the cart's piece 11 is the save (no backup RAM / no room) */
+extern void sram_from_cart(uint8_t *dst);
+extern void sram_to_cart(const uint8_t *src);
+
+/* the file into dst: 1 read, 0 no such file, -1 no backup RAM */
+static int scd_bram_load(uint8_t *dst)
+{
+    int i, r;
+    char *scdWordRam = MCD_WORDRAM; /* word ram on MD side (in 1M mode) */
+    write_long(0xA12010, 0x0C0000); /* word ram on CD side (in 1M mode) */
+    wait_do_cmd('\\');
+    wait_cmd_ack();
+    r = (int16_t)read_word(0xA12020);
+    write_byte(0xA1200E, 0x00); // acknowledge receipt of command result
+    if (r == 1)
+        for (i = 0; i < SRAM_BYTES; i++) dst[i] = scdWordRam[i];
+    return r;
+}
+
+/* src as the file: 1 written, 0 not (no room), -1 no backup RAM */
+static int scd_bram_save(const uint8_t *src)
+{
+    int i, r;
+    char *scdWordRam = MCD_WORDRAM;
+    for (i = 0; i < SRAM_BYTES; i++) scdWordRam[i] = src[i];
+    write_long(0xA12010, 0x0C0000);
+    wait_do_cmd(']');
+    wait_cmd_ack();
+    r = (int16_t)read_word(0xA12020);
+    write_byte(0xA1200E, 0x00);
+    return r;
+}
+
+void sram_commit(void)
+{
+    if (!sram_loaded || !sram_dirty || sram_mode)
+        return;
+    if (scd_bram_save(sram_shadow) == 1) {
+        sram_dirty = 0;
+        return;
+    }
+    /* no backup RAM, or no room in it: the cart keeps the save, as before */
+    sram_mode = 1;
+    sram_to_cart(sram_shadow);
+    sram_dirty = 0;
+}
+
+void sram_load(void)
+{
+    int i, r;
+    sram_loaded = 1;
+    r = scd_bram_load(sram_shadow);
+    if (r == 1)
+        return;
+    sram_from_cart(sram_shadow);                 /* the save as it was: piece 11 of the cart */
+    if (r < 0) {                                 /* no backup RAM: the cart stays the save */
+        sram_mode = 1;
+        return;
+    }
+    /* no file yet: the save moves over once when piece 11 holds DOOM's options (marssave.c: the last
+       slot, 9 x 200; magic1 0xDE at +7, magic2 0xAD at +10), else it starts empty */
+    if (sram_shadow[1807] == 0xDE && sram_shadow[1810] == 0xAD) {
+        sram_dirty = 1;
+        sram_commit();
+        return;
+    }
+    for (i = 0; i < SRAM_BYTES; i++) sram_shadow[i] = 0;
+}
+#endif

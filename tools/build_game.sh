@@ -26,6 +26,12 @@ cp "${IWAD:-$HERE/data/doom32xf.wad}" "$B/doom32xf.wad"
 # pauses in the wait loops of the two SH2s, both discs (README "Frame rate"; doomdef.h CD32X_PAUSE;
 # off: NOIDLE=1; only with CD32X=1, so the plain Fusion build stays the release's)
 case " $* " in *" CD32X=1 "*) [ -z "${NOIDLE:-}" ] && sed -i '1i #define CD32X_IDLE 1' "$B/doomdef.h" ;; esac
+# BRAMSAVE=1 (build.sh): the save as a file in the Sega CD's backup RAM instead of the cart's piece 11
+# (marshw.c Mars_WriteSRAM, src-md/crt0.s read_sram / write_sram, src-md/scd.c, src-md/cd/crt.s and s_main.c)
+if [ -n "${BRAMSAVE:-}" ]; then
+  sed -i '1i #define CD32X_BRAMSAVE 1' "$B/marshw.c" "$B/src-md/scd.c" "$B/src-md/cd/s_main.c"
+  sed -i '1i .equ CD32X_BRAMSAVE, 1' "$B/src-md/crt0.s" "$B/src-md/cd/crt.s"
+fi
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)

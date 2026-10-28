@@ -597,7 +597,11 @@ no_cmd:
         dc.w    set_dbpal - prireqtbl
         dc.w    put_chr - prireqtbl
         dc.w    clear_a - prireqtbl
+.ifdef CD32X_BRAMSAVE
+        dc.w    sram_commit_req - prireqtbl  /* 15: BRAMSAVE - the save into the Sega CD's backup RAM */
+.else
         dc.w    no_cmd - prireqtbl
+.endif
         dc.w    no_cmd - prireqtbl
         dc.w    no_cmd - prireqtbl
         dc.w    net_getbyte - prireqtbl
@@ -641,6 +645,81 @@ handle_sec_req:
         bra     main_loop
 
 read_sram:
+.ifdef CD32X_BRAMSAVE
+| CD32X BRAMSAVE (build.sh BRAMSAVE=1, the owner's 4 MB cart DOOM disc, 28 Oct 2026): the save is a file in
+| the Sega CD's own backup RAM - D32XR_DOOM_, 2048 bytes in 32 blocks (D32XR's 10 slots of 200 bytes) -
+| instead of piece 11 of the RAM cart's save area.  The 68000 keeps a copy of it (scd.c sram_shadow): the
+| SH2's byte reads and writes (commands 1 and 2) use the copy, and command 15, which Mars_WriteSRAM sends
+| after its bytes, writes the file.  The first access loads the file (scd.c sram_load).  With no file
+| yet, the save moves over from the cart: piece 11 when it holds DOOM's options, else an empty save.
+| With no backup RAM, or no room in it for the file, the cart's piece 11 stays the save, as before.
+        tst.b   sram_loaded
+        bne.b   1f
+        jsr     sram_load
+1:
+        moveq   #0,d0
+        move.w  0xA15122,d0         /* COMM2 holds offset */
+        moveq   #0,d1
+        cmpi.w  #2048,d0
+        bhs.b   2f
+        lea     sram_shadow,a0
+        move.b  0(a0,d0.l),d1
+2:
+        move.w  d1,0xA15122         /* COMM2 holds return byte */
+        move.w  #0,0xA15120         /* done */
+        bra     main_loop
+
+| void sram_from_cart(uint8_t *dst) / sram_to_cart(const uint8_t *src): the 2048 bytes of piece 11 (cart
+| 0x3FB000, page 1), with the SH2s waiting as for read_sram's single byte
+        .global sram_from_cart
+sram_from_cart:
+        movea.l 4(sp),a1
+        movem.l d2/a2,-(sp)
+        move.w  sr,-(sp)
+        move.w  #0x2700,sr
+        lea     CD32X_SAVE,a0
+        sh2_wait
+        set_rv
+        cart_w1_page 1
+        move.w  #2047,d1
+3:
+        move.b  (a0)+,(a1)+
+        dbra    d1,3b
+        cart_w1_page CD32X_PAGE
+        clr_rv
+        sh2_cont
+        move.w  (sp)+,sr
+        movem.l (sp)+,d2/a2
+        rts
+
+        .global sram_to_cart
+sram_to_cart:
+        movea.l 4(sp),a1
+        movem.l d2/a2,-(sp)
+        move.w  sr,-(sp)
+        move.w  #0x2700,sr
+        lea     CD32X_SAVE,a0
+        sh2_wait
+        set_rv
+        cart_w1_page 1
+        move.w  #2047,d1
+3:
+        move.b  (a1)+,(a0)+
+        dbra    d1,3b
+        cart_w1_page CD32X_PAGE
+        clr_rv
+        sh2_cont
+        move.w  (sp)+,sr
+        movem.l (sp)+,d2/a2
+        rts
+
+sram_commit_req:
+        jsr     sram_commit
+        move.w  #0,0xA15120         /* done */
+        bra     main_loop
+
+read_sram_cart:
+.endif
         move.w  #0x2700,sr          /* disable ints */
         moveq   #0,d0
         move.w  0xA15122,d0         /* COMM2 holds offset */
@@ -721,6 +800,29 @@ exit_rd_sram:
         bra     main_loop
 
 write_sram:
+.ifdef CD32X_BRAMSAVE
+| BRAMSAVE (see read_sram): the byte into the copy; with no backup RAM, into the cart's piece 11 too
+        move.l  d0,-(sp)
+        tst.b   sram_loaded
+        bne.b   1f
+        jsr     sram_load
+1:
+        move.l  (sp)+,d0
+        moveq   #0,d1
+        move.w  0xA15122,d1         /* COMM2 holds offset */
+        cmpi.w  #2048,d1
+        bhs.b   2f
+        lea     sram_shadow,a0
+        move.b  d0,0(a0,d1.l)
+        move.b  #1,sram_dirty
+        tst.b   sram_mode           /* 1: the cart is the save */
+        bne.b   write_sram_cart
+2:
+        move.w  #0,0xA15120         /* done */
+        bra     main_loop
+
+write_sram_cart:
+.endif
         move.w  #0x2700,sr          /* disable ints */
         moveq   #0,d1
         move.w  0xA15122,d1         /* COMM2 holds offset */

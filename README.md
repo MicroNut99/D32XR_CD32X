@@ -128,7 +128,7 @@ into the cart again.
 | Version | Runs on | Command after the `cd` | Makes |
 |---|---|---|---|
 | 1. DOOM disc | 8 / 16 MB RAM cart (disc boot) | `DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA/` |
-| 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB/` |
+| 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V2 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V2/` (the save in the Sega CD's backup RAM) |
 | 2. SIGIL disc | 4 / 8 / 16 MB RAM cart (disc boot) | the long command in section 2 (`... DISC_NAME=D32XR_CD32X_SIGIL ./build.sh`) | `discs/D32XR_CD32X_SIGIL/` |
 | 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V3/` + `cd32x/subcpu/EDCD_DOOM_NP_V3.32X` |
 
@@ -152,11 +152,27 @@ DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART4=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
+CART4=1 BRAMSAVE=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V2 ./build.sh 2>&1 | tee build_log.txt
 ```
 
-- Runs on the 4, 8 and 16 MB RAM carts, and saves in the cart's save area beside the game like
-  the other boards. The log line `4 MB cart: yes (the game ends at 0x3EF464, 2972 bytes before the
+- `BRAMSAVE=1` (28 Oct 2026): the save is a file in the Sega CD's own backup RAM, `D32XR_DOOM_` - 2048
+  bytes in 32 blocks of 64: D32XR's 10 slots of 200 bytes (9 games and the options) - instead of
+  piece 11 of the RAM cart's save area. The 68000 keeps a copy of the save; the game's byte reads and
+  writes use it, and each save writes the file (`src-md/crt0.s` read_sram, `src-md/scd.c`, the
+  Sub-CPU's commands `\` and `]` in `src-md/cd/crt.s` and `s_main.c`).
+  - The first boot moves a save over: with no file yet, piece 11 of the cart is taken when it holds
+    DOOM's options, written to the backup RAM at once.
+  - The Sega CD's backup RAM has 125 free blocks when empty; the file takes 32. If it is missing,
+    unformatted or full, the cart's piece 11 stays the save, as without `BRAMSAVE`.
+  - Not with `CART=ED` (the EverDrive build keeps its save in the EverDrive's save bank).
+  - Without `BRAMSAVE=1` the program is byte for byte the same as before.
+  - Tested in ares (28 Oct 2026, 4 MB cart, disc boot): a save in the cart (a game slot and the
+    options) moved into the backup RAM on the first boot; with the cart's piece 11 then emptied, Load Game
+    still listed the slot (read from the file); an options change wrote the file again, the cart
+    left untouched.
+
+- Runs on the 4, 8 and 16 MB RAM carts. Without `BRAMSAVE=1` it saves in the cart's save area beside
+  the game like the other boards. The log line `4 MB cart: yes (the game ends at 0x3EF464, 2972 bytes before the
   save area ...)` confirms the fit; `4 MB cart: no` means the program grew and it doesn't fit.
 - How it fits: on the 4 MB board the save area is the cart's top 64 KB (0x3F0000-0x3FFFFF), and the
   normal game image (program + Fusion's IWAD) fills all 4 MB. `tools/make_cart4.py` makes a copy of
@@ -269,6 +285,7 @@ Fusion), part of it in stack space the game never reaches.
 |---|---|---|
 | `DISC_NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`, `D32XR_CD32X_R2_4MB` with `CART4=1`). Not `NAME`: WSL exports NAME (the PC's name) into every shell, so build.sh ignores it |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
+| `BRAMSAVE=1` | both | the save as the file `D32XR_DOOM_` (32 blocks) in the Sega CD's backup RAM instead of the cart's save area; the first boot moves a cart save over (1b). The default disc name gets `_BRAM`. Not with `CART=ED` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
 | `SIGILONLY=1` | SIGIL | only SIGIL and SIGIL II on the disc (DOOM and the others left off: room for the ROM maps' textures) |

@@ -100,6 +100,10 @@ RequestTable:
         dc.w    OpenTray - RequestTable
         dc.w    PauseResume - RequestTable
         dc.w    StreamCD - RequestTable
+.ifdef CD32X_BRAMSAVE
+        dc.w    BramLoad - RequestTable     /* '\\': CD32X BRAMSAVE - the save file from the backup RAM */
+        dc.w    BramSave - RequestTable     /* ']': and into it */
+.endif
 
 UknownCmd:
         move.b  #'E,0x800F.w            /* sub comm port = ERROR */
@@ -108,6 +112,31 @@ WaitAck:
         bne.b   WaitAck                 /* wait for result acknowledged */
         move.b  #0,0x800F.w             /* sub comm port = READY */
         bra.w   WaitCmd
+
+.ifdef CD32X_BRAMSAVE
+| CD32X BRAMSAVE (build.sh BRAMSAVE=1): DOOM's save as the file D32XR_DOOM_ in the backup RAM (s_main.c).
+| 0x8010 = the save's 2048 bytes in Word RAM (Sub-CPU side); 0x8020 = 1 done, 0 no such file / no room,
+| -1 no backup RAM
+BramLoad:
+        jsr     switch_banks            /* the Sub gets the bank the 68000 filled */
+        move.l  0x8010.w,-(sp)
+        jsr     s_bram_load
+        addq.l  #4,sp
+        move.w  d0,0x8020.w
+        jsr     switch_banks            /* and gives it back */
+        move.b  #'D,0x800F.w            /* sub comm port = DONE */
+        bra     WaitAck
+
+BramSave:
+        jsr     switch_banks            /* the Sub gets the bank the 68000 filled */
+        move.l  0x8010.w,-(sp)
+        jsr     s_bram_save
+        addq.l  #4,sp
+        move.w  d0,0x8020.w
+        jsr     switch_banks            /* and gives it back */
+        move.b  #'D,0x800F.w            /* sub comm port = DONE */
+        bra     WaitAck
+.endif
 
 GetDiscInfo:
         move.w  #0x0081,d0              /* CDBSTAT */

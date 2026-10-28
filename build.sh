@@ -81,6 +81,15 @@ fi
 # CART4=1: the disc gets _4MB, so it never overwrites the 8 / 16 MB disc (D32XR_CD32X_R2) - the README's
 # commands said NAME=..._4MB, which build.sh ignores (DISC_NAME, below), so that build wrote over the R2 disc
 [ -n "${CART4:-}" ] && ED_TAG="${ED_TAG}_4MB"
+# BRAMSAVE=1 (off by default; the owner, 28 Oct 2026, for the 4 MB disc): the save is the file D32XR_DOOM_
+# in the Sega CD's own backup RAM (2048 bytes, 32 blocks) instead of piece 11 of the RAM cart's save area;
+# the first boot moves a cart save over (tools/build_game.sh, src-md/crt0.s read_sram).  The disc gets _BRAM.
+# Not with CART=ED: the EverDrive build keeps its save in the EverDrive's save bank (ED-SAVE).
+if [ -n "${BRAMSAVE:-}" ]; then
+  [ "$CART" = ED ] && { echo "*** BRAMSAVE=1 is for the RAM cart discs, not CART=ED (its save is in the EverDrive's save bank) - stopping"; exit 1; }
+  export BRAMSAVE
+  ED_TAG="${ED_TAG}_BRAM"
+fi
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.

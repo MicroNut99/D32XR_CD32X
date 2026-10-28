@@ -191,3 +191,51 @@ uint8_t *S_GetMemBankPtr(void)
 {
     return s_membank;
 }
+
+#ifdef CD32X_BRAMSAVE
+/* CD32X BRAMSAVE (build.sh BRAMSAVE=1): DOOM's save as a file in the Sega CD's backup RAM - the BIOS's
+   _BURAM calls (0x5F16: d0 = 0 BRMINIT, 3 BRMREAD, 4 BRMWRITE; a0 / a1 their parameters; carry set =
+   failed), as the CD32X boot stack's Sub-CPU program makes them.  2048 bytes = 32 blocks of 64.
+   Program RAM is full (s_membank holds the sound effects), so everything lives in the Word RAM the
+   68000 passes: the save's 2048 bytes at +0, BRMINIT's work area (0x640 bytes) at +0x800, its strings at
+   +0xE40, BRMWRITE's parameters at +0xE60 - and BRMINIT runs before each call, since Word RAM's banks
+   change hands in between. */
+#define BRAM_FILE_BLOCKS 32
+static const char bram_name[12] = "D32XR_DOOM_";
+
+static int bram_call(int fn, const void *pa0, void *pa1)
+{
+    register int d0 __asm__("d0") = fn;
+    register const void *a0 __asm__("a0") = pa0;
+    register void *a1 __asm__("a1") = pa1;
+    register int d1 __asm__("d1") = 0;
+    __asm__ volatile (
+        "movem.l %%d2-%%d7/%%a2-%%a6,-(%%sp)\n\t"
+        "jsr 0x5F16.w\n\t"
+        "scs %%d1\n\t"                          /* carry (error) -> d1 low byte 0xFF */
+        "movem.l (%%sp)+,%%d2-%%d7/%%a2-%%a6"
+        : "+d"(d0), "+a"(a0), "+a"(a1), "+d"(d1) : : "cc", "memory");
+    return (d1 & 0xFF) ? -1 : d0;
+}
+
+int s_bram_load(uint8_t *wr)        /* 1 read, 0 no such file, -1 no backup RAM */
+{
+    if (bram_call(0, wr + 0x800, wr + 0xE40) < 0)
+        return -1;
+    return bram_call(3, bram_name, wr) >= 0 ? 1 : 0;
+}
+
+int s_bram_save(uint8_t *wr)        /* 1 written, 0 not (no room), -1 no backup RAM */
+{
+    int i;
+    uint8_t *param = wr + 0xE60;
+    if (bram_call(0, wr + 0x800, wr + 0xE40) < 0)
+        return -1;
+    for (i = 0; i < 11; i++)
+        param[i] = (uint8_t)bram_name[i];
+    param[11] = 0;                                  /* normal (not protected) mode */
+    param[12] = 0;
+    param[13] = BRAM_FILE_BLOCKS;                   /* blocks of 64 bytes */
+    return bram_call(4, param, wr) >= 0 ? 1 : 0;
+}
+#endif
