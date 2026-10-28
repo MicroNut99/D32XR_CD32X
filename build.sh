@@ -72,6 +72,9 @@ if [ "$CART" = ED ]; then
   [ "$MUSIC" = sigil ] && ED_TAG="${ED_TAG}_SIGIL"
   [ -n "${ROMMAPS:-}" ] && ED_TAG="${ED_TAG}_ROMMAPS"
   [ "${NOPRELOAD:-0}" = 1 ] && ED_TAG="${ED_TAG}_NP"
+  # EDCD_VER=<n>: a version on the disc's and the launcher's names (..._V<n>), so a new build never
+  # overwrites the one before it (the launcher's saves follow its name)
+  [ -n "${EDCD_VER:-}" ] && ED_TAG="${ED_TAG}_V${EDCD_VER}"
 fi
 # NOPRELOAD=1 without CART=ED: the disc gets _NP too, so it never overwrites the preload build's
 [ "$CART" != ED ] && [ "${NOPRELOAD:-0}" = 1 ] && ED_TAG="_NP"
