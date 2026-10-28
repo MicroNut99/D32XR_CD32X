@@ -29,8 +29,9 @@ base game does not know is drawn as the stand-in texture (ASHWALL2). This tool:
  4. for what still does not fit, picks the closest-looking base texture / flat of the same size;
  5. uses the 1K texture pack's pictures (--hires) for the names it has, shrunk to the textures'
     own size (area average in linear light, light sharpening, nearest palette colour in CIELAB);
- 6. Pain Elementals (not in the engine) become Cacodemons (same health, also fly); things of
-    type 0 are dropped (the engine stops on unknown types);
+ 6. Pain Elementals (not in the engine) become Cacodemons (same health, also fly) - --keep-pain
+    (PAIN=1: the engine has them) keeps them; things of type 0 are dropped (the engine stops on
+    unknown types);
  7. music: the Fusion disc's VGM_PLUTONIA folder (the Plutonia MIDI Pack arranged for the Mega
     Drive by the Fusion team), DMAPINFO with Plutonia's names, skies, texts and secret levels.
 """
@@ -719,7 +720,7 @@ class Converter:
             ty = struct.unpack('<H', th[6:8])[0]
             if ty == 0:
                 continue
-            if ty == 71:
+            if ty == 71 and not getattr(self.args, 'keep_pain', False):
                 th[6:8] = struct.pack('<H', 3005)
                 pe += 1
             things += th
@@ -1178,6 +1179,7 @@ def main():
     ap.add_argument('--budgets', help='file: lines "MAPxx KB" - RAM for each map\'s extras (measured)')
     ap.add_argument('--out', required=True)
     ap.add_argument('--report')
+    ap.add_argument('--keep-pain', action='store_true', help='PAIN=1: Pain Elementals stay (the engine has them)')
     a = ap.parse_args()
     c = Converter(a)
     c.build(a.out)

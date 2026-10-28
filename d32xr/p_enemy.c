@@ -25,6 +25,9 @@ void A_Look (mobj_t *actor) ATTR_DATA_CACHE_ALIGN;
 void A_Chase (mobj_t *actor) ATTR_DATA_CACHE_ALIGN;
 void A_SpawnFly(mobj_t *mo);
 void P_Telefrag (mobj_t *thing, fixed_t x, fixed_t y);
+#ifdef CD32X_PAIN
+void A_Fall (mobj_t *actor);
+#endif
 
 /*
 ================
@@ -976,6 +979,11 @@ static int A_RaiseStateForMobjType(int mtype)
 		case MT_SPIDER:
 			raisestate = S_BSPI_RAISE1;
 			break;
+#ifdef CD32X_PAIN
+		case MT_PAIN:
+			raisestate = S_PAIN_RAISE1;
+			break;
+#endif
 		default:
 			break;
 	}
@@ -1323,6 +1331,89 @@ void A_SkullAttack (mobj_t *actor)
 	actor->momz = (dest->z+((dest->height*FRACUNIT)>>1) - actor->z) / dist;
 }
 
+#ifdef CD32X_PAIN
+/* CD32X PAIN (build.sh PAIN=1): the Pain Elemental, from D32XR (viciious/d32xr 6dc5d59, 23 Oct 2026) */
+//
+// A_PainShootSkull
+// Spawn a lost soul and launch it at the target
+//
+void
+A_PainShootSkull
+( mobj_t*	actor,
+  angle_t	angle )
+{
+	fixed_t x;
+	fixed_t y;
+	fixed_t z;
+	mobj_t	*mo2;
+	mobj_t *newmobj;
+	angle_t an;
+	int prestep;
+	int count;
+	pmovework_t tm;
+	const mobjinfo_t* ainfo = &mobjinfo[actor->type];
+
+	// count total number of skull currently on the level
+	count = 0;
+
+	for (mo2 = mobjhead.next; mo2 != (void *)&mobjhead; mo2 = mo2->next)
+	{
+		if (mo2->type == MT_SKULL && mo2->health > 0)
+			count++;
+	}
+
+	// if there are allready 20 skulls on the level,
+	// don't spit another one
+	if (count > 20)
+		return;
+
+	// okay, there's playe for another one
+	an = angle >> ANGLETOFINESHIFT;
+
+	prestep = (4 + 3 * (ainfo->radius + mobjinfo[MT_SKULL].radius)) * FRACUNIT / 2;
+
+	x = actor->x + FixedMul(prestep, finecosine(an));
+	y = actor->y + FixedMul(prestep, finesine(an));
+	z = actor->z + 8 * FRACUNIT;
+
+	newmobj = P_SpawnMobj(x, y, z, MT_SKULL);
+
+	// Check for movements.
+	if (!P_TryMove(&tm, newmobj, newmobj->x, newmobj->y))
+	{
+		// kill it immediately
+		P_DamageMobj(newmobj, actor, actor, 10000);
+		return;
+	}
+
+	newmobj->target = actor->target;
+	A_SkullAttack(newmobj);
+}
+
+
+//
+// A_PainAttack
+// Spawn a lost soul and launch it at the target
+// 
+void A_PainAttack (mobj_t* actor)
+{
+	if (!actor->target)
+		return;
+
+	A_FaceTarget (actor);
+	A_PainShootSkull (actor, actor->angle);
+}
+
+
+void A_PainDie (mobj_t* actor)
+{
+	A_Fall (actor);
+	A_PainShootSkull (actor, actor->angle+ANG90);
+	A_PainShootSkull (actor, actor->angle+ANG180);
+	A_PainShootSkull (actor, actor->angle+ANG270);
+}
+#endif
+
 void A_Scream (mobj_t *actor)
 {
 	int		sound;
@@ -1669,8 +1760,15 @@ void A_SpawnFly(mobj_t *mo)
 		type = MT_SERGEANT;
 	else if (r < 120)
 		type = MT_SHADOWS;
+#ifdef CD32X_PAIN
+	else if (r < 130)
+		type = MT_PAIN;
+	else if (r < 160)
+		type = MT_HEAD;
+#else
 	else if (r < 130)
 		type = MT_HEAD;
+#endif
     else if (r < 162)
 		type = MT_VILE;
 	else if (r < 172)

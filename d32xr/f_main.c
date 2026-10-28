@@ -22,9 +22,16 @@ static const castinfo_t castorder[] = {
 {"hell knight", MT_KNIGHT, 2},
 {"baron of hell", MT_BRUISER},
 {"arachnotron", MT_BABY, 2},
+#ifdef CD32X_PAIN
+{"pain elemental", MT_PAIN, 2},
+#endif
 {"revenant", MT_UNDEAD, 2},
 {"mancubus", MT_FATSO, 2},
+#ifdef CD32X_PAIN
+{"arch vile", MT_VILE, 2},
+#else
 {"arch-vile", MT_VILE, 2},
+#endif
 {"cyberdemon", MT_CYBORG, 1},
 {"spider mastermind", MT_SPIDER, 1},
 {"our hero", MT_PLAYER, 1},
@@ -550,7 +557,11 @@ int F_Ticker (void)
 		case S_CYBER_ATK2:
 		case S_CYBER_ATK4:
 		case S_CYBER_ATK6: sfx = sfx_rlaunc; break;
+#ifdef CD32X_PAIN
+		case S_PAIN_ATK3: sfx = sfx_sklatk; break;
+#else
 		//case S_PAIN_ATK3: sfx = sfx_sklatk; break;
+#endif
 		default: sfx = 0; break;
 		}
 		

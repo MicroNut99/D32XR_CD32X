@@ -128,12 +128,13 @@ into the cart again.
 | Version | Runs on | Command after the `cd` | Makes |
 |---|---|---|---|
 | 1. DOOM disc | 8 / 16 MB RAM cart (disc boot) | `DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA/` |
-| 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V2 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V2/` (the save in the Sega CD's backup RAM) |
+| 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 PAIN=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V3/` (the save in the Sega CD's backup RAM; the Pain Elemental) |
 | 2. SIGIL disc | 4 / 8 / 16 MB RAM cart (disc boot) | the long command in section 2 (`... DISC_NAME=D32XR_CD32X_SIGIL ./build.sh`) | `discs/D32XR_CD32X_SIGIL/` |
-| 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V3/` + `cd32x/subcpu/EDCD_DOOM_NP_V3.32X` |
+| 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_NP_V4_PAIN.32X` (the Pain Elemental) |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
-`DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V2`), or for the EverDrive the next `EDCD_VER` (4, 5, ...).
+`DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
+`PAIN=1` (the Pain Elemental, section "The Pain Elemental") needs your `doom2.wad` in `data/`.
 
 **1. The DOOM disc** (DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI; CD audio = the IDKFA soundtrack):
 
@@ -152,8 +153,12 @@ DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART4=1 BRAMSAVE=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V2 ./build.sh 2>&1 | tee build_log.txt
+CART4=1 BRAMSAVE=1 PAIN=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V3 ./build.sh 2>&1 | tee build_log.txt
 ```
+
+- `PAIN=1` (28 Oct 2026, V3): the Pain Elemental (section "The Pain Elemental"). On the 4 MB cart its
+  frames other than the floating ones are drawn at half width, and 42 walls and the SKY2 sky are in 16
+  colours. Without `PAIN=1` (and with `DISC_NAME=D32XR_CD32X_IDKFA_4MB_V2`) it makes the V2 disc as before.
 
 - `BRAMSAVE=1` (28 Oct 2026): the save is a file in the Sega CD's own backup RAM, `D32XR_DOOM_` - 2048
   bytes in 32 blocks of 64: D32XR's 10 slots of 200 bytes (9 games and the options) - instead of
@@ -256,11 +261,11 @@ disc as a cartridge boot):
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 | tee build_log.txt
+CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 | tee build_log.txt
 ```
 
-- Makes the disc `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V3/` and the launcher
-  `cd32x/subcpu/EDCD_DOOM_NP_V3.32X`. Burn the disc; copy the launcher to the EverDrive's SD card and
+- Makes the disc `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V4_PAIN/` and the launcher
+  `cd32x/subcpu/EDCD_DOOM_NP_V4_PAIN.32X`. Burn the disc; copy the launcher to the EverDrive's SD card and
   start it from the EverDrive's menu with the disc in the Sega CD (not "Run Mega-CD"). The disc is
   EverDrive-only (its ROM is built for the cartridge boot's map).
 - `NOPRELOAD=1`: the loader copies only the game's 4 MB and the game reads every WAD from the CD.
@@ -268,13 +273,17 @@ CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 | tee build
   about 1 1/2 minutes of LOADING GAME (with the preload it was 5).
 - `LOADER_CHECK=1`: each 32 KB of the game is checked and copied again if it came out wrong (the
   `4DE2` stop on the console, 27 Oct 2026); a stop shows its code on screen.
-- `EDCD_VER=3`: `_V3` on both names. Use the next number for each new build: the EverDrive keeps
-  each launcher's saves under its own name (`MEGA/gamedata/EDCD_DOOM_NP_V3.32X/bram.srm`), so a new
+- `EDCD_VER=4`: `_V4` on both names. Use the next number for each new build: the EverDrive keeps
+  each launcher's saves under its own name (`MEGA/gamedata/EDCD_DOOM_NP_V4_PAIN.32X/bram.srm`), so a new
   version starts without the last one's saves.
+- `PAIN=1` (V4): the Pain Elemental (section "The Pain Elemental"), all its frames at full width; 35
+  walls are in 16 colours to make room. `_PAIN` on both names. Without it: the V3 build
+  (`EDCD_VER=3`, no `PAIN=1`).
 - The save (the options and Fusion's checkpoint) is in the EverDrive's save bank (bank 31), not in
   the game's 4 MB, so the 4 MB game of 1b is not needed here.
 - Tested: V2 on the console (27 Oct 2026, "100% working"); V3 in ares (LOADING GAME, the video,
-  SELECT GAME, DOOM's title). V3 only differs from V2 in its build stamp.
+  SELECT GAME, DOOM's title). V3 only differs from V2 in its build stamp. V4 in ares (28 Oct 2026):
+  the launcher, LOADING GAME, SELECT GAME, DOOM II with a Pain Elemental (see "The Pain Elemental").
 
 **Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
 Fusion), part of it in stack space the game never reaches.
@@ -286,6 +295,7 @@ Fusion), part of it in stack space the game never reaches.
 | `DISC_NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`, `D32XR_CD32X_R2_4MB` with `CART4=1`). Not `NAME`: WSL exports NAME (the PC's name) into every shell, so build.sh ignores it |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `BRAMSAVE=1` | both | the save as the file `D32XR_DOOM_` (32 blocks) in the Sega CD's backup RAM instead of the cart's save area; the first boot moves a cart save over (1b). The default disc name gets `_BRAM`. Not with `CART=ED` |
+| `PAIN=1` | DOOM | the Pain Elemental (from D32XR, 23-25 Oct 2026; its data from your `data/doom2.wad`): section "The Pain Elemental". The disc and launcher names get `_PAIN`. Not with `ROMMAPS` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
 | `SIGILONLY=1` | SIGIL | only SIGIL and SIGIL II on the disc (DOOM and the others left off: room for the ROM maps' textures) |
@@ -401,6 +411,44 @@ Tried and left out: the renderer at `-O2` instead of `-Os`. Its hot code is in t
 `-O2` makes it 4 KB bigger, which the stack doesn't have (black screen), and with 6 KB of zone
 given up for a test it was *slower* (E6M4 6.3, E6M8 7.0 fps): bigger code misses the SH2's 4 KB
 cache more often. Even `-O2` on the renderer's cart code alone grew the SDRAM code 4 KB (inlining).
+
+## The Pain Elemental (`PAIN=1`)
+
+D32XR added the Pain Elemental on 23 Oct 2026 ("Add Pain Elemental"; on 25 Oct the Icon of Sin
+spawns it too and the cast at the end shows it). DOOM CD32X Fusion, which these discs are built on, has
+none of it: no code, no sprites or sounds, and its DOOM II maps have a Cacodemon (three Imps on MAP25)
+wherever DOOM II has a Pain Elemental. `PAIN=1` puts all of it in, and it needs your `doom2.wad` in
+`data/` (the build stops without it):
+
+- **Code** (`CD32X_PAIN`, set by `tools/build_game.sh`): D32XR's commits 6dc5d59, b9c8ade and
+  335f59b - the monster (`A_PainAttack`, `A_PainDie`: a Lost Soul out of its mouth, three when it
+  dies, no more when 21 are about), the Arch-Vile raising it, the Icon of Sin spawning it (DOOM II's
+  odds), the cast ("pain elemental"; "arch vile" as D32XR now spells it). D32XR's mobj list is one
+  pointer here (Fusion's), so the Lost Soul count walks `mobjhead.next`.
+- **Sprites** (`tools/make_pain.py iwad`): DOOM II's 41 PAIN sprites in the 32X format, added to the
+  IWAD; identical runs of pixels are stored once (118 KB instead of 149 KB).
+- **Sounds** (`tools/make_pain.py disc`): DSPESIT, DSPEPAIN, DSPEDTH in SOUNDS.WAD, in the format of
+  Fusion's smallest sounds (Creative Voice File, 2-bit ADPCM). The Sega CD keeps every sound in one
+  453 KB buffer which Fusion's sounds fill to 548 bytes: two sounds that are never played make the room
+  (the first of the two VILATK - the game finds the second - and FLAMST - the game asks for
+  "flamest"), and the three are made at 7042 Hz, the most that fits.
+- **Maps:** DOOM_II.WAD's 64 Pain Elementals are back (MAP08-11, 15, 17, 20, 21, 23, 25, 27-29: the
+  Cacodemons / Imps standing on their spots, with their flags); PLUTONIA.WAD keeps its 96
+  (`tools/make_game.py --keep-pain`; without `PAIN=1` they become Cacodemons, as before).
+- **Room:** Fusion's IWAD already fills the game's 4 MB, so walls go to 16 colours, the least colour
+  lost first (`tools/make_cart4.py --any-size`: any size that gets smaller, textures other textures
+  draw pieces of when their height is even - `R_CompositeColumn` reads 4-bit ones - and the 8-bit sky
+  SKY2 as Fusion's other skies). The EverDrive (4): 35 walls, all frames at full width. The 4 MB RAM
+  cart (1b) has 64 KB less (its save area): 42 walls and SKY2, and the Pain Elemental's attack, pain
+  and death frames at half width (each odd column repeats the even one); its floating frames stay full.
+  `make_pain.py` takes the least loss that fits: half width only for what the walls cannot make room for.
+- **Not checked:** DOOM II's second attract demo plays on MAP11, which now has four Pain Elementals
+  where Fusion's recording had Cacodemons, so it may play out differently.
+- **Tested in ares (28 Oct 2026):** both builds, with a copy of each disc whose DOOM II MAP01 has a
+  Pain Elemental in front of the start: it shows, floats over, spits Lost Souls (frames 1b half / 4
+  full width), the sounds play; with a test build of 1b (health 10) it bursts into its death frames and
+  three Lost Souls. The builds without `PAIN=1` are byte for byte the same as before (game builds
+  compared).
 
 ## The cart
 
@@ -557,6 +605,7 @@ the Sega CD by itself. The CD-boot disc is unchanged, byte for byte.
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
+| `d32xr/info.c`, `info.h`, `p_enemy.c`, `sounds.c`, `sounds.h`, `f_main.c` | `CD32X_PAIN` (`PAIN=1`): the Pain Elemental, D32XR's own code (section "The Pain Elemental"). |
 | `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `p_tick.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c`, `r_phase8.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (both discs, `CD32X_IDLE`; README "Frame rate"). `r_data.c`: shorter sprite-setup error texts (room for them on the DOOM disc). |
 
 ## The boot stack

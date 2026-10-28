@@ -90,6 +90,18 @@ if [ -n "${BRAMSAVE:-}" ]; then
   export BRAMSAVE
   ED_TAG="${ED_TAG}_BRAM"
 fi
+# PAIN=1 (off by default; the owner, 28 Oct 2026): the Pain Elemental - D32XR's code for it (viciious/d32xr,
+# 23-25 Oct 2026: the monster, the Icon of Sin spawning it, the cast) and its data made from your
+# data/doom2.wad (tools/make_pain.py): its sprites in the IWAD, its three sounds in SOUNDS.WAD, the 64
+# Pain Elementals back in DOOM II's maps (Fusion has Cacodemons there) and kept in PLUTONIA.WAD. The 118 KB
+# of sprites need room in the game's 4 MB: more walls go to 16 colours (tools/make_cart4.py --any-size,
+# the least colour lost first) and, on the 4 MB RAM cart, some of its frames are drawn at half width.
+# The disc gets _PAIN. Not with ROMMAPS (the SIGIL disc).
+if [ -n "${PAIN:-}" ]; then
+  [ -n "$ROMMAPS" ] && { echo "*** PAIN=1 is for the DOOM disc, not ROMMAPS - stopping"; exit 1; }
+  export PAIN
+  ED_TAG="${ED_TAG}_PAIN"
+fi
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.
@@ -133,7 +145,7 @@ if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
   PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
   python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
-          ${PK:+--hires "$PK"} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
+          ${PK:+--hires "$PK"} ${PAIN:+--keep-pain} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
           --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
     || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD failed"; exit 1; }
   tail -1 "$HERE/build/plutonia_log.txt"
@@ -181,6 +193,11 @@ if [ "$MUSIC" != sigil ] && { [ -f "$DISC/SIGIL.WAD" ] || [ -f "$DISC/SIGIL_II.W
   fi
 fi
 IWAD="$DATA/doom32xf.wad"
+# PAIN=1: the Pain Elemental's sprites into the IWAD, its sounds and its places on the disc (tools/make_pain.py)
+if [ -n "${PAIN:-}" ]; then
+  echo "==> the Pain Elemental on the disc (tools/make_pain.py, from data/doom2.wad)"
+  python3 "$HERE/tools/make_pain.py" disc --doom2 "$DATA/doom2.wad" --disc "$DISC"
+fi
 if [ -n "$ROMMAPS" ]; then
   echo "==> the ROM maps ($ROMMAPS) into the game's IWAD"
   # NOREJECT=1: the ROM maps without reject tables (more room, more sight checks)
@@ -190,11 +207,22 @@ if [ -n "$ROMMAPS" ]; then
 fi
 # CART4=1: the DOOM disc for the 4 MB RAM cart too (README "Building", 1b): textures and flats no game
 # uses stubbed, 13 walls in 4-bit (16 colours), so the game ends below the cart's save area
-if [ -n "${CART4:-}" ] && [ -z "$ROMMAPS" ]; then
+if [ -n "${CART4:-}" ] && [ -z "$ROMMAPS" ] && [ -z "${PAIN:-}" ]; then
   echo "==> the IWAD for the 4 MB cart (tools/make_cart4.py)"
   python3 "$HERE/tools/make_cart4.py" --iwad "$DATA/doom32xf.wad" --disc $(ls "$DISC"/*.WAD) \
           --out "$HERE/build/cart4_iwad.wad" > "$HERE/build/cart4_log.txt" \
     || { tail -5 "$HERE/build/cart4_log.txt"; echo "*** 4 MB IWAD failed"; exit 1; }
+  cat "$HERE/build/cart4_log.txt"
+  IWAD="$HERE/build/cart4_iwad.wad"
+fi
+# PAIN=1: the IWAD with the Pain Elemental fits the game's 4 MB (CART=ED, the 8 / 16 MB carts) or ends below
+# the 4 MB cart's save area (CART4=1), with a 222 KB program (D32XR's code + the Pain Elemental's)
+if [ -n "${PAIN:-}" ]; then
+  LIMIT=$((0x400000 - 222 * 1024)); [ -n "${CART4:-}" ] && LIMIT=$((0x3F0000 - 222 * 1024))
+  echo "==> the IWAD with the Pain Elemental's sprites, for the game's 4 MB (tools/make_pain.py, limit $LIMIT)"
+  python3 "$HERE/tools/make_pain.py" iwad --iwad "$IWAD" --doom2 "$DATA/doom2.wad" --disc $(ls "$DISC"/*.WAD) \
+          --limit $LIMIT --out "$HERE/build/cart4_iwad.wad" > "$HERE/build/cart4_log.txt" \
+    || { tail -5 "$HERE/build/cart4_log.txt"; echo "*** the IWAD with the Pain Elemental does not fit"; exit 1; }
   cat "$HERE/build/cart4_log.txt"
   IWAD="$HERE/build/cart4_iwad.wad"
 fi

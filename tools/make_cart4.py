@@ -17,6 +17,9 @@ refuses that board. This makes the IWAD small enough for the image to end below 
 
 Everything else keeps its bytes. --limit: the IWAD's largest size (default: the save area less a
 219 KB program; the build's tools/fit_4mb.py checks the real end).
+--any-size (PAIN=1, the Pain Elemental's sprites): after FIRST, textures of every size that get smaller,
+decals with an even height and the 8-bit sky (SKY2) too, the least colour lost first (the default takes
+only the 64 x 128 ones that are no decals).
 """
 import argparse, os, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -70,25 +73,20 @@ def write_iwad(L, D, out_path):
     return len(out)
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--iwad', required=True)
-    ap.add_argument('--disc', nargs='+', required=True, help='the WADs on the disc (their maps)')
-    ap.add_argument('--limit', type=int, default=SAVE_AREA - 219 * 1024)
-    ap.add_argument('--out', required=True)
-    a = ap.parse_args()
-
-    D, L = rm.read_iwad(a.iwad)
-    B = mg.Base(a.iwad)
+def shrink(iwad, disc, limit, out, any_size=False):
+    """the IWAD made small enough (see above); returns its size"""
+    D, L = rm.read_iwad(iwad)
+    B = mg.Base(iwad)
     names = [l['name'] for l in L]
     pal = mg.Palette(D[L[names.index('PLAYPALS')]['pos']:][:768])
 
-    t, f = rm.disc_names(a.disc)
+    t, f = rm.disc_names(disc)
     freed = rm.stub_unused(L, D, t, f)
     print('  unused textures and flats: %d KB freed' % (freed // 1024))
     size = write_iwad(L, D, None)
 
-    # textures other textures draw pieces of (decals): kept 8-bit
+    # textures other textures draw pieces of (decals): kept 8-bit (--any-size: 4-bit too when their height
+    # is even - r_data.c R_CompositeColumn reads 4-bit decals, Fusion has some)
     tl = L[names.index('TEXTURE1')]
     td = D[tl['pos']:tl['end']]
     td = rm.lzss_decode(td) if tl['raw'][0] & 0x80 else td
@@ -108,53 +106,85 @@ def main():
         if l['size'] and l['pos'] is not None:
             starts.setdefault(l['pos'], []).append(l['name'])
 
+    def sky(i):
+        """--any-size: an 8-bit sky picture (SKY2: 256 x 128, a 16-byte header, columns) -> 4-bit with one
+        row of colours, as Fusion's other skies and tools/make_game.py's (jag4 sky=True)"""
+        l = L[i]
+        if not any_size or not l['name'].startswith('SKY') or not l['size'] or l['pos'] is None or l['raw'][0] & 0x80:
+            return None
+        w, h, depth, _, flags = struct.unpack('>5H', D[l['pos']:l['pos'] + 10])
+        if depth != 3 or flags != 1 or l['size'] != 16 + w * h or len(starts.get(l['pos'], [])) != 1:
+            return None
+        return w, h, D[l['pos'] + 16:l['pos'] + 16 + w * h]
+
     def candidate(i):
         l = L[i]
         nm = l['name']
-        if not l['size'] or l['pos'] is None or l['raw'][0] & 0x80 or nm not in B.index or nm not in t:
-            return None
-        if nm in patched or B.depth.get(nm) != 3 or len(starts.get(l['pos'], [])) != 1:
-            return None
-        k = B.index[nm]
-        w, h = B.tex[k]['w'], B.tex[k]['h']
-        if l['size'] != w * h:
-            return None
-        cm = D[l['pos']:l['pos'] + w * h]
+        s = sky(i)
+        if s:
+            w, h, cm = s
+        else:
+            if not l['size'] or l['pos'] is None or l['raw'][0] & 0x80 or nm not in B.index or nm not in t:
+                return None
+            if B.depth.get(nm) != 3 or len(starts.get(l['pos'], [])) != 1:
+                return None
+            k = B.index[nm]
+            w, h = B.tex[k]['w'], B.tex[k]['h']
+            if nm in patched and not (any_size and h % 2 == 0):
+                return None
+            if l['size'] != w * h:
+                return None
+            if any_size and w * h // 2 + 16 + 33 * 32 >= w * h:      # the 4-bit one would be no smaller
+                return None
+            cm = D[l['pos']:l['pos'] + w * h]
         img = np.frombuffer(cm, np.uint8)
         idx, cols = mg.quantize16(img, pal)
         q = np.array(cols, np.uint8)[idx]
         err = float(np.sqrt(((pal.lab[img] - pal.lab[q]) ** 2).sum(-1)).mean())
-        return (w, h, cm, err)
+        return (w, h, cm, err, bool(s))
 
     byname = {L[i]['name']: i for i in range(ts + 1, te)}
     order = [byname[n] for n in FIRST if n in byname]
     rest = []
-    for i in range(ts + 1, te):
+    others = [i for i in range(len(L)) if any_size and L[i]['name'].startswith('SKY') and not ts < i < te]
+    for i in list(range(ts + 1, te)) + others:
         if i in order:
             continue
         c = candidate(i)
-        if c and c[0] * c[1] == 64 * 128:
+        if c and (any_size or c[0] * c[1] == 64 * 128):
             rest.append((c[3], i))
     order += [i for _, i in sorted(rest)]
 
     done = []
     for i in order:
-        if size <= a.limit:
+        if size <= limit:
             break
         c = candidate(i)
         if not c:
             continue
-        w, h, cm, err = c
-        data = mg.jag4(w, h, cm, B.colormap, pal)
+        w, h, cm, err, issky = c
+        data = mg.jag4(w, h, cm, B.colormap, pal, sky=True) if issky else mg.jag4(w, h, cm, B.colormap, pal)
         l = L[i]
         l['pos'], l['data'], l['size'], l['end'] = None, data, len(data), None
         l['raw'] = bytes([l['raw'][0] & 0x7f]) + l['raw'][1:]
         size = write_iwad(L, D, None)
         done.append('%s %dx%d (colour error %.1f)' % (l['name'], w, h, err))
-    size = write_iwad(L, D, a.out)
+    size = write_iwad(L, D, out)
     print('  4-bit now: %s' % (', '.join(done) or 'none'))
     print('4 MB IWAD: %s, %d bytes (%d less than %s; limit %d, %d spare)'
-          % (a.out, size, len(D) - size, os.path.basename(a.iwad), a.limit, a.limit - size))
+          % (out, size, len(D) - size, os.path.basename(iwad), limit, limit - size))
+    return size
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--iwad', required=True)
+    ap.add_argument('--disc', nargs='+', required=True, help='the WADs on the disc (their maps)')
+    ap.add_argument('--limit', type=int, default=SAVE_AREA - 219 * 1024)
+    ap.add_argument('--any-size', action='store_true')
+    ap.add_argument('--out', required=True)
+    a = ap.parse_args()
+    size = shrink(a.iwad, a.disc, a.limit, a.out, a.any_size)
     if size > a.limit:
         sys.exit('make_cart4: still %d bytes over' % (size - a.limit))
 

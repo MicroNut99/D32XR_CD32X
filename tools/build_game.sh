@@ -32,6 +32,9 @@ if [ -n "${BRAMSAVE:-}" ]; then
   sed -i '1i #define CD32X_BRAMSAVE 1' "$B/marshw.c" "$B/src-md/scd.c" "$B/src-md/cd/s_main.c"
   sed -i '1i .equ CD32X_BRAMSAVE, 1' "$B/src-md/crt0.s" "$B/src-md/cd/crt.s"
 fi
+# PAIN=1 (build.sh): the Pain Elemental, from D32XR (viciious/d32xr 23-25 Oct 2026): info.c / info.h, p_enemy.c,
+# sounds.c / sounds.h, f_main.c (the cast); its sprites and sounds come from tools/make_pain.py
+[ -n "${PAIN:-}" ] && sed -i '1i #define CD32X_PAIN 1' "$B/info.h" "$B/info.c" "$B/sounds.h" "$B/sounds.c" "$B/p_enemy.c" "$B/f_main.c"
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)

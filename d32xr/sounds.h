@@ -122,6 +122,11 @@ typedef enum
   sfx_ppopai,
   sfx_ppodth,
   sfx_ppoact,
+#ifdef CD32X_PAIN
+  sfx_pesit,
+  sfx_pepain,
+  sfx_pedth,
+#endif
   NUMSFX 
 } sfxenum_t; 
  
