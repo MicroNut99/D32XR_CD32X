@@ -132,6 +132,7 @@ into the cart again.
 | 2. SIGIL disc | 4 / 8 / 16 MB RAM cart (disc boot) | the long command in section 2 (`... DISC_NAME=D32XR_CD32X_SIGIL ./build.sh`) | `discs/D32XR_CD32X_SIGIL/` |
 | 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_NP_V4_PAIN.32X` (the Pain Elemental) |
 | 4b. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_V4_PAIN.32X` (the Pain Elemental; SOUNDS, DOOM, DOOM II, RESURRECTION copied into the EverDrive's memory) |
+| 5. DOOM 32X+CD (cartridge + disc) | a flash cart with the 32X game (Mega EverDrive X3 / X5 / X7 / PRO) + the disc in the Sega CD | `CARTCD=1 PAIN=1 DISC_NAME=DOOM32XCD_V1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V1/`: `DOOM32XCD_V1.32x` (the cartridge ROM, for the SD card) + `DOOM32XCD_V1.cue` / `.bin` |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
 `DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
@@ -299,6 +300,31 @@ CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 | te
   SELECT GAME, DOOM's title). V3 only differs from V2 in its build stamp. V4 in ares (28 Oct 2026):
   the launcher, LOADING GAME, SELECT GAME, DOOM II with a Pain Elemental (see "The Pain Elemental").
 
+**5. DOOM 32X+CD** (the same five games; the way Fusion itself runs: the game is a cartridge, the
+Sega CD supplies the levels, sounds, video and music):
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+CARTCD=1 PAIN=1 DISC_NAME=DOOM32XCD_V1 ./build.sh 2>&1 | tee build_log.txt
+```
+
+- Makes `discs/DOOM32XCD_V1/` with `DOOM32XCD_V1.32x` (the cartridge ROM, 4 MB) and the disc
+  `DOOM32XCD_V1.cue` / `.bin`. Copy the `.32x` to the flash cart's SD card and start it from the cart's
+  menu with the disc in the Sega CD (the 32X and the Sega CD both attached). Burn the disc as usual.
+- For the carts that cannot load a game from the disc into themselves (the Mega EverDrive X3, X5, X7):
+  the menu loads the game from the SD card in seconds - no LOADING GAME, no launcher. It runs on the PRO
+  too. Not on the Mega EverDrive Core, which cannot use a Sega CD from a cartridge game.
+- The ROM is D32XR's own cartridge build (no `CD32X=1`: no boot stack, no RAM cart pages, no loading),
+  as the SIGIL 32X+CD project builds SIGIL; the saves are in the cartridge's save RAM (16 KB, declared
+  in the ROM's header, as Fusion's). The disc is a plain data track (the WADs, SOUNDS.WAD, the video;
+  no boot program) plus the CD audio.
+- `PAIN=1`: the Pain Elemental, as on the EverDrive (all frames full width, 35 walls in 16 colours).
+  Without it, Fusion's game with PLUTONIA added.
+- Tested in ares (28 Oct 2026, the cartridge + the disc): the video, SELECT GAME in 25 s, DOOM II with
+  a Pain Elemental on MAP01 (test copy of the disc), an options change written to the cartridge's save
+  RAM. Not on a console yet; whether the X series gives a cartridge game the Sega CD as the PRO does has
+  to be seen on one.
+
 **Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
 Fusion), part of it in stack space the game never reaches.
 
@@ -309,6 +335,7 @@ Fusion), part of it in stack space the game never reaches.
 | `DISC_NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`, `D32XR_CD32X_R2_4MB` with `CART4=1`). Not `NAME`: WSL exports NAME (the PC's name) into every shell, so build.sh ignores it |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `BRAMSAVE=1` | both | the save as the file `D32XR_DOOM_` (32 blocks) in the Sega CD's backup RAM instead of the cart's save area; the first boot moves a cart save over (1b). The default disc name gets `_BRAM`. Not with `CART=ED` |
+| `CARTCD=1` | DOOM | the 32X+CD version (5): the game as a cartridge ROM for a flash cart's SD card + the disc it reads; names get `_32XCD`. Not with `CART`, `EDCD`, `CART4`, `BRAMSAVE` or `ROMMAPS` |
 | `PAIN=1` | DOOM | the Pain Elemental (from D32XR, 23-25 Oct 2026; its data from your `data/doom2.wad`): section "The Pain Elemental". The disc and launcher names get `_PAIN`. Not with `ROMMAPS` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
@@ -616,6 +643,7 @@ the Sega CD by itself. The CD-boot disc is unchanged, byte for byte.
 | `d32xr/d_main.c` | The melt bug: the screen backup around `M_Start` kept with the CD. |
 | `d32xr/src-md/scd*.c`, `vgm.c`, `crt0.s`, `Makefile` | `CD32X_MODE1`: the cartridge boot's map for the EverDrive disc (README "The two memory maps"). |
 | `d32xr/src-md/crt0.s` | The melt bug's second cause: `COL_STORE` follows the boot mode (README "The melt bug, second cause"). |
+| `d32xr/src-md/crt0.s` | `COL_STORE`'s `CD32X_MODE1` test only inside `CD32X` (where it is defined): D32XR's own cartridge build (`CARTCD=1`) assembles again; the `CD32X` builds are byte for byte the same. |
 | `d32xr/marssound.c`, `marshw.*`, `d_mapinfo.*` | `cdMusic`, `musicStream`, the CD track restart after disc reads, `CD32X_CDONLY` (set by `build_game.sh` for the SIGIL disc). |
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |

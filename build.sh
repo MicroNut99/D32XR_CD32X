@@ -102,6 +102,17 @@ if [ -n "${PAIN:-}" ]; then
   export PAIN
   ED_TAG="${ED_TAG}_PAIN"
 fi
+# CARTCD=1 (off by default; the owner, 28 Oct 2026): the 32X+CD version, the way Fusion itself runs - the game
+# as a cartridge ROM for a flash cart (discs/<name>/<name>.32x: the Mega EverDrive X3 / X5 / X7 / PRO's SD card)
+# and a disc the Sega CD reads for it in mode 1 (the WADs, the sounds, the video, the CD audio). The ROM is
+# D32XR's own cartridge build (no CD32X=1: no boot stack, no RAM cart pages, no loading, saves in the
+# cartridge's save RAM as Fusion's), as the SIGIL 32X+CD project builds SIGIL; the disc a plain data track.
+# The names get _32XCD. Not with CART, EDCD, CART4, BRAMSAVE or ROMMAPS (those are the boot-stack versions).
+if [ -n "${CARTCD:-}" ]; then
+  { [ -n "$CART" ] || [ "${EDCD:-0}" = 1 ] || [ -n "${CART4:-}" ] || [ -n "${BRAMSAVE:-}" ] || [ -n "$ROMMAPS" ]; } \
+    && { echo "*** CARTCD=1 is a version of its own: not with CART, EDCD, CART4, BRAMSAVE or ROMMAPS - stopping"; exit 1; }
+  ED_TAG="_32XCD${ED_TAG}"
+fi
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.
@@ -226,6 +237,7 @@ if [ -n "${PAIN:-}" ]; then
   cat "$HERE/build/cart4_log.txt"
   IWAD="$HERE/build/cart4_iwad.wad"
 fi
+if [ -z "${CARTCD:-}" ]; then
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
 # NOPRELOAD=1 (off by default): nothing preloaded - the loader copies the game's 4 MB only and the game
 # reads every WAD from the CD, D32XR's own mode-1 way (its native cart + Mega CD path).  For the EverDrive
@@ -272,6 +284,17 @@ for f in APP.BIN CDLOADER.BIN D32XR.32X IMAGE.RAW SOUNDS.WAD ${SIGILONLY:-DOOM.W
   [ -f "$HERE/cd32x/subcpu/cd/$f" ] || { echo "*** $f is not on the disc - stopping"; exit 1; }
 done
 cmp -s "$HERE/cd32x/subcpu/cd/D32XR.32X" "$ROMS/D32XR.32X" || { echo "*** the disc has an old game - stopping"; exit 1; }
+MIXISO=CDROMPlayer.iso
+else
+# CARTCD=1: the cartridge ROM and the disc's data track (above)
+echo "==> the cartridge ROM: D32XR's own cartridge build${PAIN:+, with the Pain Elemental}${FIRE:+, with the title fire}"
+DRAWDIST="${DRAWDIST:-}" IWAD="$IWAD" CDONLY="$CDONLY" bash "$HERE/tools/build_game.sh" "$HERE/build/$NAME.32x"
+SIZE=$(stat -c %s "$HERE/build/$NAME.32x")
+[ "$SIZE" -le 4194304 ] || { echo "*** the ROM is $SIZE bytes, more than the 32X's 4 MB - stopping"; exit 1; }
+echo "==> the disc's data track: the WADs, the sounds and the video the cartridge reads (no boot stack)"
+MIXISO="$HERE/build/$NAME.iso"
+genisoimage -quiet -sysid "SEGA SEGACD" -volid "DOOM CD32X FUSION" -full-iso9660-filenames -l -o "$MIXISO" "$DISC"
+fi
 
 echo "==> CD audio"
 MUS="$HERE/build/music"; rm -rf "$MUS"; mkdir -p "$MUS"
@@ -302,13 +325,19 @@ PY
   echo "    no data/music/Track*.wav: one silent audio track"
 fi
 # no gaps between the audio tracks (like the IDKFA disc's cue): 2 s each would cost 7 MB
-cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso "$MUS"/Track*.wav --pregap 0 --out "$NAME"
+cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py "$MIXISO" "$MUS"/Track*.wav --pregap 0 --out "$NAME"
 SECTORS=$(( $(stat -c %s "$NAME.bin") / 2352 ))
 printf "    the disc: %d sectors = %d:%02d of an 80:00 CD\n" $SECTORS $((SECTORS / 4500)) $((SECTORS % 4500 / 75))
 [ $SECTORS -le 359849 ] || echo "*** WARNING: longer than an 80-minute CD ($SECTORS > 359849 sectors)"
 mkdir -p "$HERE/discs/$NAME" && mv -f "$NAME.bin" "$NAME.cue" "$HERE/discs/$NAME/"
 echo
 echo "==> done: discs/$NAME/$NAME.cue (with its .bin)"
+if [ -n "${CARTCD:-}" ]; then
+  cp "$HERE/build/$NAME.32x" "$HERE/discs/$NAME/"
+  echo "==> the cartridge: discs/$NAME/$NAME.32x - copy it to the flash cart's SD card and start it from the menu,"
+  echo "    with the disc above in the Sega CD (the 32X and the Sega CD both attached)"
+  exit 0
+fi
 
 # EDCD=1 (MODE1-1, CD32X BootCamp docs/12): EDCD_DOOM.32X, made by the BootCamp's edboot/build_edcd.sh
 # around this disc's Sub-CPU program built a second time for the cartridge boot (MODE1=1 M1PAGE=1, in a
