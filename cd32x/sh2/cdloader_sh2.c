@@ -145,8 +145,48 @@ static void flip_wait(void) {
     for (n = 0; n < FB_SPINS && (SC_VDP_FBCTL & 1) == cur; n++) { }
 }
 
+/* CDL_LOADER_CHECK (build.sh LOADER_CHECK=1, off by default): a stop is readable on the loading screen -
+   the STATE code (4DEx) drawn in big white digits on a black box over the picture, in both frame buffers
+   (this disc's Sub-CPU program prints no green text: KOBO_DIAG_TEXT 0), instead of a bar that just
+   stops - and the ROM is checked once more right before the game starts (4DE6: it changed after its own
+   check, during the preload or the record) */
+#ifndef CDL_LOADER_CHECK
+#define CDL_LOADER_CHECK 0
+#endif
+#if CDL_LOADER_CHECK && CDL_SPLASH
+static int splash_on;                    /* (defined with the loading screen below) */
+static const uint16_t hex35[16] = {      /* 3 x 5 digits 0-F, row by row, the top row in bits 14-12 */
+    0x7B6F, 0x2C97, 0x73E7, 0x73CF, 0x5BC9, 0x79CF, 0x79EF, 0x7249,
+    0x7BEF, 0x7BCF, 0x7BED, 0x6BAE, 0x7927, 0x6B6E, 0x79E7, 0x79E4 };
+#define CODE_X0 122                      /* the box: 76 x 28 pixels, above the bar */
+#define CODE_Y0 170
+static void code_draw(uint16_t code) {
+    volatile uint16_t *fb = SC_FRAMEBUFFER + 0x100;          /* the pixels, after the line table */
+    int d, r, c, x, y;
+    for (y = CODE_Y0; y < CODE_Y0 + 28; y++)
+        for (x = CODE_X0; x < CODE_X0 + 76; x += 2) fb[y * 160 + (x >> 1)] = 0xFCFC;   /* colour 252 */
+    for (d = 0; d < 4; d++) {                /* constant shifts only: no C library (__ashrsi3) */
+        uint16_t g = hex35[(code >> 12) & 15], m = 0x4000;
+        code = (uint16_t)(code << 4);
+        for (r = 0; r < 5; r++)
+            for (c = 0; c < 3; c++, m >>= 1)
+                if (g & m)
+                    for (y = 0; y < 4; y++)
+                        for (x = 0; x < 4; x += 2)
+                            fb[(CODE_Y0 + 4 + r * 4 + y) * 160 + ((CODE_X0 + 8 + d * 16 + c * 4 + x) >> 1)] = 0xFDFD;   /* 253 */
+    }
+}
+#endif
 static void halt(uint16_t code) {
     show_status(code);                   /* stays on screen as STATE:4DEx */
+#if CDL_LOADER_CHECK && CDL_SPLASH
+    if (splash_on) {
+        int i;
+        SC_CRAM[252] = 0x0000;           /* black */
+        SC_CRAM[253] = 0x7FFF;           /* white */
+        for (i = 0; i < 2; i++) { code_draw(code); flip_wait(); }
+    }
+#endif
     while (1) { }
 }
 
@@ -348,6 +388,11 @@ static void splash_progress(uint32_t done, uint32_t total) {
     if (!splash_on) return;
     for (i = 0; i < 2; i++) { splash_bar(done, total); flip_wait(); }
 }
+#elif CDL_D32XR_PAGE
+/* LOADER_DIAG=1 (CDL_SPLASH 0): no loading screen - the D32XR copy still calls these two, so they are
+   empty here (the build stopped at the link without them: undefined splash_text / splash_progress) */
+static void splash_progress(uint32_t done, uint32_t total) { (void)done; (void)total; }
+static void splash_text(int strip) { (void)strip; }
 #endif
 
 #if CDL_D32XR_PAGE
@@ -560,6 +605,9 @@ int main(void) {
         }
         cart_page(CDL_D32XR_PAGE);
         show_status(0x4D16);
+#if CDL_LOADER_CHECK
+        if (rom_sum() != PL_ROM_SUM) halt(0x4DE6);           /* LOADER_CHECK: the ROM is still the ROM */
+#endif
         goto loaded;
     }
 #endif

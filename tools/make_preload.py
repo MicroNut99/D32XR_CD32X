@@ -58,7 +58,11 @@ def plan(folder, out_json, out_68k, out_sub):
     files = []
     linear = 0
     skipped = []
-    for name in PRELOAD_ORDER:
+    # NOPRELOAD=1 (build.sh): no files - the loader copies the ROM only and the game reads the CD
+    order = [] if os.environ.get('NOPRELOAD', '0') == '1' else PRELOAD_ORDER
+    if not order:
+        print('preload: NOPRELOAD=1 - nothing in the cart, the game reads every WAD from the CD')
+    for name in order:
         path = os.path.join(folder, name)
         if not os.path.exists(path):
             continue

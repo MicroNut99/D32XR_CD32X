@@ -61,6 +61,11 @@ static int32_t cd32x_lba[CD32X_PRELOAD_COUNT + 1];
 static int cd32x_preload_ok(void)
 {
     if (cd32x_cart_ok < 0) {
+#if CD32X_PRELOAD_COUNT == 0
+        /* NOPRELOAD=1 (build.sh): nothing is in the cart, so the record is not read at all - no
+           RV = 1 copy and no page switch: every file comes from the CD */
+        cd32x_cart_ok = 0;
+#else
         char rec[16];
         int i;
         cd32x_cart_copy(rec, 1, 0x1FF000, 16);
@@ -68,6 +73,7 @@ static int cd32x_preload_ok(void)
         for (i = 0; i < 16; i++)
             if (rec[i] != CD32X_RECORD[i])
                 cd32x_cart_ok = 0;
+#endif
     }
     return cd32x_cart_ok;
 }

@@ -71,7 +71,10 @@ if [ "$CART" = ED ]; then
   ED_TAG="_EDCD_DOOM"
   [ "$MUSIC" = sigil ] && ED_TAG="${ED_TAG}_SIGIL"
   [ -n "${ROMMAPS:-}" ] && ED_TAG="${ED_TAG}_ROMMAPS"
+  [ "${NOPRELOAD:-0}" = 1 ] && ED_TAG="${ED_TAG}_NP"
 fi
+# NOPRELOAD=1 without CART=ED: the disc gets _NP too, so it never overwrites the preload build's
+[ "$CART" != ED ] && [ "${NOPRELOAD:-0}" = 1 ] && ED_TAG="_NP"
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.
@@ -181,6 +184,13 @@ if [ -n "${CART4:-}" ] && [ -z "$ROMMAPS" ]; then
   IWAD="$HERE/build/cart4_iwad.wad"
 fi
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
+# NOPRELOAD=1 (off by default): nothing preloaded - the loader copies the game's 4 MB only and the game
+# reads every WAD from the CD, D32XR's own mode-1 way (its native cart + Mega CD path).  For the EverDrive
+# (CART=ED): its menu wipes the PSRAM, so the preload was copied again on every start - about 10 MB, some
+# 3 1/2 minutes more of loading each time - and the game's preload reads (68000 with RV = 1, its own
+# CTRL4-7 page switches, straight into the frame buffer) are the part of the boot no console has run yet.
+# The disc and launcher get _NP in their names (above).  tools/make_preload.py reads NOPRELOAD itself.
+export NOPRELOAD="${NOPRELOAD:-0}"
 python3 "$HERE/tools/make_preload.py" plan "$DISC" "$HERE/build/preload.json" \
         "$HERE/build/cd32x_preload.h" "$HERE/cd32x/subcpu/preload_names.h"
 echo "==> game (DOOM CD32X Fusion v3.0, CD32X=1${FIRE:+, with the title fire})"
@@ -199,12 +209,16 @@ echo "==> loading screen"
 # where, and whether it is still moving behind a picture that has stopped being redrawn.  The 32X layer
 # is what the splash draws on, and the loader's own waits for it are the only unbounded ones in the copy.
 CDL_SPLASH=1; [ "${LOADER_DIAG:-0}" = 1 ] && CDL_SPLASH=0
+# LOADER_CHECK=1 (off by default): a loader stop shows its STATE:4DEx code over the loading screen instead
+# of a bar that just stops, and the ROM is checked again right before the game starts (4DE6 = it changed
+# after its first check).  Nothing else changes; without it the loader is built as before.
+CDL_CHECK=""; [ "${LOADER_CHECK:-0}" = 1 ] && CDL_CHECK=" -DCDL_LOADER_CHECK=1"
 SPLASH_ED=""; [ "$CART" = ED ] && SPLASH_ED="--ed"
 if [ -f "$DATA/splash.png" ]; then python3 "$HERE/tools/make_splash.py" $SPLASH_ED "$DATA/splash.png" "$ROMS/IMAGE.RAW"
 else                               python3 "$HERE/tools/make_splash.py" $SPLASH_ED - "$ROMS/IMAGE.RAW"; fi
 echo "==> SH2 loader"
 cd "$HERE/cd32x/sh2" && make -f Makefile.cdloader clean > /dev/null \
-  && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=$CDL_SPLASH -DCDL_D32XR_PAGE=$PAGE"
+  && make -f Makefile.cdloader LOADER_DEFS="-DCDL_TARGET_OPENLARA=0 -DCDL_SPLASH=$CDL_SPLASH -DCDL_D32XR_PAGE=$PAGE$CDL_CHECK"
 echo "==> Sub-CPU and 68000 listener"
 cd "$HERE/cd32x/subcpu" && make clean > /dev/null \
   && make cd CART_DEFS=-DCART_PAGED GAME_DEFS="-DD32XR_CD=$PAGE" VOLID=DOOM_CD32X EXTRA_DIR="$DISC"

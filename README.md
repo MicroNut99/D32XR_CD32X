@@ -250,6 +250,8 @@ Fusion), part of it in stack space the game never reaches.
 | `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
 | `CART=ED EDCD=1` | both | the **Mega EverDrive PRO** build: the EverDrive as the 16 MB cart, plus the launcher `EDCD_DOOM.32X` for its SD card (start that with the disc in the Sega CD, not "Run Mega-CD"). The ROM is built for the cartridge boot's map, so that disc is EverDrive-only - README "The two memory maps" |
 | `LOADER_DIAG=1` | both | the loading screen off, so the Sub-CPU's green `STATE:` text shows: `4Cnn` is the chunk being copied. For a load that stops - the number says where, and whether it is still moving |
+| `NOPRELOAD=1` | both | nothing preloaded into the cart: the loader copies the game's 4 MB only and the game reads every WAD from the CD (D32XR's own way). For the EverDrive (`CART=ED`), whose menu wipes its PSRAM so the preload was copied again at every start: about 1 1/2 minutes of loading instead of 5. The disc and launcher get `_NP` in their names (`D32XR_CD32X_R2_EDCD_DOOM_NP`, `EDCD_DOOM_NP.32X`) |
+| `LOADER_CHECK=1` | both | a loader stop shows its `STATE:4DEx` code over the loading screen (instead of a bar that just stops), and the ROM is checked once more right before the game starts (`4DE6`: it changed after its first check) |
 | `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
 
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
