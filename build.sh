@@ -78,6 +78,9 @@ if [ "$CART" = ED ]; then
 fi
 # NOPRELOAD=1 without CART=ED: the disc gets _NP too, so it never overwrites the preload build's
 [ "$CART" != ED ] && [ "${NOPRELOAD:-0}" = 1 ] && ED_TAG="_NP"
+# CART4=1: the disc gets _4MB, so it never overwrites the 8 / 16 MB disc (D32XR_CD32X_R2) - the README's
+# commands said NAME=..._4MB, which build.sh ignores (DISC_NAME, below), so that build wrote over the R2 disc
+[ -n "${CART4:-}" ] && ED_TAG="${ED_TAG}_4MB"
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.

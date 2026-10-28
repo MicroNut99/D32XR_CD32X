@@ -126,7 +126,7 @@ into the cart again.
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
+DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Needs the 8 MB or 16 MB RAM cart (the 4 MB board is refused: the game fills it, save area
@@ -139,7 +139,7 @@ NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 | tee build_log.txt
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-CART4=1 NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
+CART4=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Runs on the 4, 8 and 16 MB RAM carts, and saves in the cart's save area beside the game like
@@ -164,7 +164,7 @@ CART4=1 NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 | tee build_log.txt
 
 ```
 cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
-ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
+ROMMAPS="E5M4 E5M5 E5M9 E6M4 E6M8" ROMBUDGET=64 ROMBUDGETS="E6M8=96" NOREJECT=1 SIGILONLY=1 MUSIC=sigil DRAWDIST=far DISC_NAME=D32XR_CD32X_SIGIL ./build.sh 2>&1 | tee build_log.txt
 ```
 
 - Runs on the 4, 8 and 16 MB RAM carts. The log line `4 MB cart: yes (...)` says it fits before
@@ -229,7 +229,7 @@ Fusion), part of it in stack space the game never reaches.
 
 | Switch | Disc | What it does |
 |---|---|---|
-| `NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`) |
+| `DISC_NAME=<name>` | both | the disc's name and folder (`discs/<name>/`; default `D32XR_CD32X_R2`, `D32XR_CD32X_R2_4MB` with `CART4=1`). Not `NAME`: WSL exports NAME (the PC's name) into every shell, so build.sh ignores it |
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
