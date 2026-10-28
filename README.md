@@ -95,7 +95,8 @@ Also:
 
 ## What you need
 
-- Sega CD + 32X, the **16 MB RAM cart** (the 16MB-PCB-CD32X board; 8 MB works without the preload).
+- Sega CD + 32X and one of: the **16 MB RAM cart** (8 MB works without the preload), the **4 MB RAM
+  cart** (build 1b or the SIGIL disc), or the **Mega EverDrive PRO** (build 4).
 - In the project's `data/` folder (never committed):
 
 | File | Use |
@@ -121,6 +122,18 @@ Every command starts with the `cd`, so it works from any folder. The disc ends u
 `discs/<NAME>/<NAME>.cue` with its `.bin`: burn or load the `.cue`. A build takes about 5 minutes.
 The discs build different game programs, so after switching discs the first boot copies the game
 into the cart again.
+
+**Which command for which version** (the full commands are in the sections below):
+
+| Version | Runs on | Command after the `cd` | Makes |
+|---|---|---|---|
+| 1. DOOM disc | 8 / 16 MB RAM cart (disc boot) | `DISC_NAME=D32XR_CD32X_IDKFA ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA/` |
+| 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB/` |
+| 2. SIGIL disc | 4 / 8 / 16 MB RAM cart (disc boot) | the long command in section 2 (`... DISC_NAME=D32XR_CD32X_SIGIL ./build.sh`) | `discs/D32XR_CD32X_SIGIL/` |
+| 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V3/` + `cd32x/subcpu/EDCD_DOOM_NP_V3.32X` |
+
+For a new build of the same version, give it a new name so it never overwrites the last one: a new
+`DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V2`), or for the EverDrive the next `EDCD_VER` (4, 5, ...).
 
 **1. The DOOM disc** (DOOM, DOOM II, PLUTONIA, RESURRECTION, TNT MINI; CD audio = the IDKFA soundtrack):
 
@@ -222,6 +235,31 @@ python3 tools/make_sigil_albums.py --sigil "SIGIL1_Music/flac" --sigil2 "SIGIL I
 | keep DOOM on it (the same 12 levels) | drop `SIGILONLY=1` and use `ROMBUDGET=24` (DOOM's textures take the room; 8 / 16 MB only) |
 | SIGIL's songs streamed instead of CD audio | `WITHSIGIL=1` on the DOOM disc instead (the CD maps only) |
 
+**4. DOOM for the Mega EverDrive PRO** (the same five games as 1; the EverDrive's launcher starts the
+disc as a cartridge boot):
+
+```
+cd /mnt/s/KoboPort/sega-toolchain-12.1/sega/D32XR_CD32X
+CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=3 ./build.sh 2>&1 | tee build_log.txt
+```
+
+- Makes the disc `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V3/` and the launcher
+  `cd32x/subcpu/EDCD_DOOM_NP_V3.32X`. Burn the disc; copy the launcher to the EverDrive's SD card and
+  start it from the EverDrive's menu with the disc in the Sega CD (not "Run Mega-CD"). The disc is
+  EverDrive-only (its ROM is built for the cartridge boot's map).
+- `NOPRELOAD=1`: the loader copies only the game's 4 MB and the game reads every WAD from the CD.
+  The EverDrive's menu wipes its PSRAM, so whatever is in the cart is copied again at every start:
+  about 1 1/2 minutes of LOADING GAME (with the preload it was 5).
+- `LOADER_CHECK=1`: each 32 KB of the game is checked and copied again if it came out wrong (the
+  `4DE2` stop on the console, 27 Oct 2026); a stop shows its code on screen.
+- `EDCD_VER=3`: `_V3` on both names. Use the next number for each new build: the EverDrive keeps
+  each launcher's saves under its own name (`MEGA/gamedata/EDCD_DOOM_NP_V3.32X/bram.srm`), so a new
+  version starts without the last one's saves.
+- The save (the options and Fusion's checkpoint) is in the EverDrive's save bank (bank 31), not in
+  the game's 4 MB, so the 4 MB game of 1b is not needed here.
+- Tested: V2 on the console (27 Oct 2026, "100% working"); V3 in ares (LOADING GAME, the video,
+  SELECT GAME, DOOM's title). V3 only differs from V2 in its build stamp.
+
 **Both discs:** both engines have room for 230 walls and 32 floor / ceiling areas a frame (165 in
 Fusion), part of it in stack space the game never reaches.
 
@@ -248,7 +286,7 @@ Fusion), part of it in stack space the game never reaches.
 | `SIGILCDDA=<folder>` | SIGIL | other SIGIL CD audio tracks (`Track02-23.wav`) |
 | `SIGILPIC=<file>` | SIGIL | another intermission / loading picture for SIGIL and SIGIL II (default: `art/sigil-wallpaper.jpg`; `lump:SIGILINT` / `lump:SIGILIN2`: a WAD's own art) |
 | `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
-| `CART=ED EDCD=1` | both | the **Mega EverDrive PRO** build: the EverDrive as the 16 MB cart, plus the launcher `EDCD_DOOM.32X` for its SD card (start that with the disc in the Sega CD, not "Run Mega-CD"). The ROM is built for the cartridge boot's map, so that disc is EverDrive-only - README "The two memory maps" |
+| `CART=ED EDCD=1` | both | the **Mega EverDrive PRO** build (section 4): the EverDrive as the 16 MB cart, plus the launcher `EDCD_DOOM.32X` for its SD card (start that with the disc in the Sega CD, not "Run Mega-CD"). The ROM is built for the cartridge boot's map, so that disc is EverDrive-only - README "The two memory maps" |
 | `LOADER_DIAG=1` | both | the loading screen off, so the Sub-CPU's green `STATE:` text shows: `4Cnn` is the chunk being copied. For a load that stops - the number says where, and whether it is still moving |
 | `NOPRELOAD=1` | both | nothing preloaded into the cart: the loader copies the game's 4 MB only and the game reads every WAD from the CD (D32XR's own way). For the EverDrive (`CART=ED`), whose menu wipes its PSRAM so the preload was copied again at every start: about 1 1/2 minutes of loading instead of 5. The disc and launcher get `_NP` in their names (`D32XR_CD32X_R2_EDCD_DOOM_NP`, `EDCD_DOOM_NP.32X`) |
 | `EDCD_VER=<n>` | both | with `CART=ED`: `_V<n>` on the disc's and the launcher's names (`D32XR_CD32X_R2_EDCD_DOOM_NP_V2`, `EDCD_DOOM_NP_V2.32X`), so a new build never overwrites the last one |
