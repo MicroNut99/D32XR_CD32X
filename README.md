@@ -131,6 +131,7 @@ into the cart again.
 | 1b. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 PAIN=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V3/` (the save in the Sega CD's backup RAM; the Pain Elemental) |
 | 2. SIGIL disc | 4 / 8 / 16 MB RAM cart (disc boot) | the long command in section 2 (`... DISC_NAME=D32XR_CD32X_SIGIL ./build.sh`) | `discs/D32XR_CD32X_SIGIL/` |
 | 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_NP_V4_PAIN.32X` (the Pain Elemental) |
+| 4b. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_V4_PAIN.32X` (the Pain Elemental; SOUNDS, DOOM, DOOM II, RESURRECTION copied into the EverDrive's memory) |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
 `DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
@@ -279,6 +280,16 @@ CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 | te
 - `PAIN=1` (V4): the Pain Elemental (section "The Pain Elemental"), all its frames at full width; 35
   walls are in 16 colours to make room. `_PAIN` on both names. Without it: the V3 build
   (`EDCD_VER=3`, no `PAIN=1`).
+- **4b, the EverDrive's 16 MB** (28 Oct 2026): the same command without `NOPRELOAD=1`
+  (`CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh`): the disc
+  `discs/D32XR_CD32X_R2_EDCD_DOOM_V4_PAIN/` and the launcher `EDCD_DOOM_V4_PAIN.32X` (no `_NP`, so it
+  never overwrites 4's). The loader also copies SOUNDS, DOOM, DOOM II and RESURRECTION into the
+  EverDrive's PSRAM (pages 2-6, 10.1 MB) and the game reads them from there instead of the CD (TNT MINI
+  and PLUTONIA still from the CD). The EverDrive's menu wipes its PSRAM, so that is about 5 minutes of
+  LOADING GAME at every start (4: 1 1/2). The game is the same 4 MB as 4's. Tested in ares: the launcher,
+  the 5-minute load with its checks, SELECT GAME, DOOM II MAP21 (Ultra-Violence) and MAP23 from the
+  EverDrive's memory, and a test copy with a Pain Elemental on MAP01 (it shows, spits Lost Souls). The
+  preload reads have not run on a console yet (4 and earlier EverDrive builds were `NOPRELOAD=1`).
 - The save (the options and Fusion's checkpoint) is in the EverDrive's save bank (bank 31), not in
   the game's 4 MB, so the 4 MB game of 1b is not needed here.
 - Tested: V2 on the console (27 Oct 2026, "100% working"); V3 in ares (LOADING GAME, the video,
