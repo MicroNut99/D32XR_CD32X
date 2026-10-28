@@ -110,6 +110,15 @@ def loader(in_json, rom_path, out_h):
         f.write('#define PL_ROM_LENGTH 0x%06X\n#define PL_ROM_SUM 0x%08X\n' % (len(rom), checksum(rom)))
         f.write('#define PL_CHUNK 0x%X\n#define PL_PAGE_USE 0x%06X\n#define PL_FIRST_PAGE %d\n'
                 % (CHUNK, PAGE_USE, FIRST_PAGE))
+        # LOADER_CHECK (build.sh): each 32 KB chunk's checksum, so the loader can find a chunk that came
+        # out wrong and copy it again (only compiled with CDL_LOADER_CHECK)
+        nch = (len(rom) + CHUNK - 1) // CHUNK
+        f.write('#if defined(CDL_LOADER_CHECK) && CDL_LOADER_CHECK\n#define PL_ROM_CHUNKS %d\n' % nch)
+        f.write('static const uint32_t pl_rom_chunk[PL_ROM_CHUNKS] = {\n')
+        for i in range(0, nch, 8):
+            f.write('    ' + ', '.join('0x%08X' % checksum(rom[k * CHUNK:(k + 1) * CHUNK])
+                                      for k in range(i, min(i + 8, nch))) + ',\n')
+        f.write('};\n#endif\n')
         f.write('#define PL_COUNT %d\n' % len(files))
         f.write('static const struct { uint16_t file; uint32_t length, linear, sum; } pl_files[PL_COUNT + 1] = {\n')
         for i, e in enumerate(files):

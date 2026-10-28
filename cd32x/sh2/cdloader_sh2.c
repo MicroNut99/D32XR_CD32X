@@ -468,6 +468,39 @@ static uint32_t rom_sum(void) {
     return sum_add(s, CART_W1, PL_ROM_LENGTH - 0x200000);
 #endif
 }
+#if CDL_LOADER_CHECK
+/* LOADER_CHECK: every 32 KB of the game against the build's own table (tools/make_preload.py:
+   pl_rom_chunk), and a chunk that differs is copied again from the CD - up to 3 times - before the
+   loader gives up with 4E00 + the chunk's number.  The console stopped with 4DE2 (28 Oct 2026) on a
+   disc that had loaded through on another start: some 32 KB come out wrong now and then, and one
+   wrong chunk was enough to stop the whole load. */
+static uint32_t chunk_sum(uint32_t c) {
+    uint32_t off = c << 15, n = PL_ROM_LENGTH - off;
+    if (n > CHUNK_BYTES) n = CHUNK_BYTES;
+    if (off < 0x200000) return sum_add(0, (const volatile uint32_t *)(0x22000000u + off), n);
+    return sum_add(0, (const volatile uint32_t *)((volatile uint8_t *)CART_W1 + (off - 0x200000)), n);
+}
+static uint32_t rom_fix(uint32_t len) {              /* how many chunks were copied again */
+    uint32_t c, fixed = 0, nch = (len + CHUNK_BYTES - 1) >> 15;
+    int tries;
+    cart_page(CDL_D32XR_PAGE);
+    for (c = 0; c < nch && c < PL_ROM_CHUNKS; c++) {
+        for (tries = 0; chunk_sum(c) != pl_rom_chunk[c]; tries++) {
+            if (tries == 3) halt((uint16_t)(0x4E00 | (c & 0xFF)));   /* this chunk never came out right */
+            show_status((uint16_t)(0x4B00 | (c & 0xFF)));
+            SC_COMM2 = FILE_D32XR;
+            wait_cmd(CMD_OPEN_FILE);
+            SC_COMM8_32 = len;
+            SC_COMM2 = (uint16_t)c;
+            SC_COMM12 = 0;
+            wait_cmd(CMD_CHUNK_TO_CART);
+            cart_page(CDL_D32XR_PAGE);
+            fixed++;
+        }
+    }
+    return fixed;
+}
+#endif
 static uint32_t file_sum(int f) {
     uint32_t s = 0, done = 0, len = pl_files[f].length, lin = pl_files[f].linear;
     while (done < len) {
@@ -549,6 +582,9 @@ int main(void) {
         uint32_t total = 0, done = 0;
         uint8_t need[PL_COUNT + 1];
         int mb, f, all_ok = 1, rom_bad;
+#if CDL_LOADER_CHECK
+        uint32_t fixed = 0;
+#endif
         uint16_t pad;
         show_status(0x4D10);
         mb = cart_probe();
@@ -588,7 +624,13 @@ int main(void) {
                 show_status((uint16_t)(0x4C00 | (c & 0xFF)));
                 splash_progress(++done, total);
             }
+#if CDL_LOADER_CHECK
+            (void)bad;                                        /* the chunk sums decide, not the read-back */
+            fixed = rom_fix(len);
+            if (rom_sum() != PL_ROM_SUM) halt(0x4DE2);
+#else
             if (bad || rom_sum() != PL_ROM_SUM) halt(0x4DE2);
+#endif
         }
         for (f = 0; f < PL_COUNT; f++) {
             if (need[f] && (file_copy(f, &done, total) || file_sum(f) != pl_files[f].sum)) all_ok = 0;
@@ -607,6 +649,15 @@ int main(void) {
         show_status(0x4D16);
 #if CDL_LOADER_CHECK
         if (rom_sum() != PL_ROM_SUM) halt(0x4DE6);           /* LOADER_CHECK: the ROM is still the ROM */
+#if CDL_SPLASH
+        if (fixed && splash_on) {                             /* 4Bnn for about 3 s: nn chunks copied twice */
+            int i;
+            SC_CRAM[252] = 0x0000;
+            SC_CRAM[253] = 0x7FFF;
+            for (i = 0; i < 2; i++) { code_draw((uint16_t)(0x4B00 | (fixed > 0xFF ? 0xFF : fixed))); flip_wait(); }
+            for (n = 0; n < 120000UL; n++) comm_pause();
+        }
+#endif
 #endif
         goto loaded;
     }
