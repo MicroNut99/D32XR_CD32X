@@ -195,6 +195,12 @@ void R_WallLatePrep(viswall_t* wc, mapvertex_t *verts)
     const int start = wc->start;
     const int stop = wc->stop;
     const int width = stop - start + 1;
+#ifdef CD32X
+    /* CD32X: with MAXWALLCMDS 230 a busy SIGIL view can run out of openings (MAXOPENINGS):
+       that wall is dropped, as one past MAXWALLCMDS is, instead of stopping the game */
+    if (vd->lastsegclip - vd->segclip + width * 2 > MAXOPENINGS)
+        wc->actionbits = 0;
+#endif
     if (wc->actionbits & (AC_NEWFLOOR | AC_NEWCEILING | AC_TOPSIL | AC_BOTTOMSIL | AC_MIDTEXTURE))
     {
         wc->clipbounds = vd->lastsegclip - start;
@@ -388,6 +394,8 @@ void Mars_Sec_R_WallPrep(void)
         else
         {
             last = first + (uint8_t)nextsegs;
+            if (segl >= last)
+                CD32X_PAUSE(CD32X_PAUSE_SHORT);	/* caught up with the BSP walk */
         }
 
         for (; segl < last; segl++)

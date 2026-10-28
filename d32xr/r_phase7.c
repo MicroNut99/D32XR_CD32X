@@ -261,7 +261,7 @@ static int R_TryLockPln(void)
 
 static void R_LockPln(void)
 {
-    while (!R_TryLockPln());
+    while (!R_TryLockPln()) CD32X_PAUSE(CD32X_PAUSE_SHORT);
 }
 
 static void R_UnlockPln(void)
@@ -552,7 +552,7 @@ void R_DrawPlanes(void)
     else
     {
         // the secondary CPU is already on it, take our hands off the bus
-        Mars_R_SecWait();
+        Mars_R_SecWaitPause();
     }
 
     Mars_R_BeginDrawPlanes();

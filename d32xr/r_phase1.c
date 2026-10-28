@@ -34,7 +34,53 @@ typedef struct
    VINT       lastv2;
    angle_t    lastangle1;
    angle_t    lastangle2;
+#ifdef CD32X_DARKFAR
+   boolean    curfar;
+#endif
 } rbspWork_t;
+
+#ifdef CD32X_DARKFAR
+/* CD32X: the draw distance. The BSP goes nearest first; as a frame fills up with walls, two-sided
+   lines farther away are drawn as solid walls of darkness (nothing behind them is drawn), the
+   distance shrinking as the wall count nears MAXWALLCMDS: from R_FAR_AFTER walls, lines beyond
+   1024 map units; from 190, beyond 512; from 215, beyond 256. Busy views (SIGIL's open areas)
+   stay under the limit instead of dropping far walls at random and letting the floors and
+   ceilings bleed; views with fewer walls are drawn as before. */
+#ifdef CD32X_DRAWDIST_FAR
+/* build.sh DRAWDIST=far: later and farther - more of the view, but busy views reach MAXWALLCMDS
+   more often (ares: E5M4, E5M9, E6M1, E6M3, E6M8 in 13-30 % of frames; what is cut is black) */
+#define R_FAR_AFTER 190
+#define R_FAR_DIST(walls) (walls < 205 ? 1536/8 : walls < 218 ? 768/8 : 384/8)
+#else
+/* the default: E5M4, E6M2-4, E6M9 never reach the limit; E5M9, E6M1 in 1-3 % of frames, E6M8 in 17 % */
+#define R_FAR_AFTER 150
+#define R_FAR_DIST(walls) (walls < 190 ? 1024/8 : walls < 215 ? 512/8 : 256/8)
+#endif
+static boolean __attribute__((noinline)) R_FarLine(int x1, int y1, int x2, int y2, int walls)
+{
+   /* in units of 8 map units (32-bit products), true distance from the view to the line */
+   int px, py, dx, dy, dot, dd, dist;
+   if (walls < R_FAR_AFTER)
+      return false;
+   dist = R_FAR_DIST(walls);
+   px = ((vd->viewx >> FRACBITS) - x1) >> 3;
+   py = ((vd->viewy >> FRACBITS) - y1) >> 3;
+   dx = (x2 - x1) >> 3;
+   dy = (y2 - y1) >> 3;
+   dot = px * dx + py * dy;
+   dd = dx * dx + dy * dy;
+   if (dot > 0 && dot < dd)
+   {
+      /* beside the line: cross / |d| >= dist, |d| approximated (max + min/2, at most 12% long) */
+      int cross = px * dy - py * dx, ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+      if (cross < 0) cross = -cross;
+      return cross >= dist * (ax > ay ? ax + (ay >> 1) : ay + (ax >> 1));
+   }
+   if (dot >= dd && dd)
+      px -= dx, py -= dy;
+   return px * px + py * py >= dist * dist;
+}
+#endif
 
 static int R_ClipToViewEdges(angle_t angle1, angle_t angle2) ATTR_DATA_CACHE_ALIGN;
 static void R_AddLine(rbspWork_t *rbsp, seg_t* line) ATTR_DATA_CACHE_ALIGN;
@@ -224,6 +270,10 @@ static void R_WallEarlyPrep(rbspWork_t *rbsp, viswall_t* segl)
 
       if (!back_sector)
          back_sector = &emptysector;
+#ifdef CD32X_DARKFAR
+      if (rbsp->curfar)
+         back_sector = &emptysector;      /* a wall of darkness: closed behind */
+#endif
 
       b_ceilingpic    = *(int8_t *)&back_sector->ceilingpic == -1 ? -1 : back_sector->ceilingpic;
       b_lightlevel    = back_sector->lightlevel;
@@ -266,12 +316,30 @@ static void R_WallEarlyPrep(rbspWork_t *rbsp, viswall_t* segl)
 
       segl->t_topheight = f_ceilingheight>>HEIGHTINTBITS; // top of texturemap
 
+#ifdef CD32X_DARKFAR
+      if (!(li->sidenum[1] >= 0) || rbsp->curfar)
+#else
       if (!(li->sidenum[1] >= 0))
+#endif
       {
          // single-sided line
+#ifdef CD32X_DARKFAR
+         int midtex = si->midtexture;
+         if (rbsp->curfar)
+         {
+            /* any texture: it is drawn at the darkest light (AC_FARDARK, r_phase6.c) */
+            midtex = si->midtexture > 0 ? si->midtexture : si->toptexture > 0 ? si->toptexture :
+               si->bottomtexture > 0 ? si->bottomtexture : 1;
+            actionbits |= AC_FARDARK;
+         }
+         if (midtex > 0)
+         {
+            segl->t_texturenum = texturetranslation[midtex];
+#else
          if (si->midtexture > 0)
          {
             segl->t_texturenum = texturetranslation[si->midtexture];
+#endif
 
             // handle unpegging (bottom of texture at bottom, or top of texture at top)
             if(liflags & ML_DONTPEGBOTTOM)
@@ -622,6 +690,15 @@ static void R_AddLine(rbspWork_t *rbsp, seg_t *line)
            return;
    }
 
+#ifdef CD32X_DARKFAR
+   rbsp->curfar = false;
+   if (backsector && !solid &&
+       R_FarLine(vertexes[nv1].x, vertexes[nv1].y, vertexes[nv2].x, vertexes[nv2].y, vd->lastwallcmd - vd->viswalls))
+   {
+      solid = true;
+      rbsp->curfar = true;
+   }
+#endif
    rbsp->curline    = line;
    rbsp->curside    = sidedef;
    rbsp->curldef    = ldef;

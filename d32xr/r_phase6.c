@@ -69,6 +69,13 @@ static void R_LockSeg(void) ATTR_DATA_CACHE_ALIGN;
 static void R_UnlockSeg(void) ATTR_DATA_CACHE_ALIGN;
 void R_SegCommands(void) ATTR_DATA_CACHE_ALIGN __attribute__((noinline));
 
+#ifdef MARS
+/* COMM6 holds the walls' counters as bytes: the BSP walk's added count (int8_t, -2 = the walk is
+   done, -1 = drawing is done) and the ready count (uint8_t) - more walls than 253 would read as
+   those markers (TEST_WALLS) */
+_Static_assert(MAXWALLCMDS <= 253, "MAXWALLCMDS: the wall counters in COMM6 are bytes");
+#endif
+
 //
 // Render a wall texture as columns
 //
@@ -328,6 +335,7 @@ static void R_DrawSegSky(seglocal_t* lseg, unsigned short *restrict clipbounds)
 static void R_LockSeg(void)
 {
     while (atomic_flag_test_and_set(&seg_lock)) {
+        CD32X_PAUSE(CD32X_PAUSE_SHORT);
     }
 }
 
@@ -439,7 +447,7 @@ void R_SegCommands(void)
         if (*addedsegs == -1)
             return; // the other cpu is done drawing segments, so should we
         while (*readysegs <= i)
-            continue;
+            CD32X_PAUSE(CD32X_PAUSE_SHORT);
 #endif
 
 #ifdef MARS
@@ -467,6 +475,14 @@ void R_SegCommands(void)
             lseg.lightmin = lseg.lightmax = vd->fixedcolormap;
             lseg.lightcoef = 0;
         }
+#ifdef CD32X_DARKFAR
+        else if (segl->actionbits & AC_FARDARK)
+        {
+            /* darkness (r_phase1.c's draw distance): the darkest light, black pixels below */
+            lseg.lightmin = lseg.lightmax = HWLIGHT(0);
+            lseg.lightcoef = 0;
+        }
+#endif
         else
         {
             seglight = segl->seglightlevel & 0xff;
@@ -557,6 +573,22 @@ void R_SegCommands(void)
         {
             R_SetupDrawTexture(toptex, &textures[segl->t_texturenum],
                 segl->t_texturemid<<HEIGHTINTBITS, segl->t_topheight<<HEIGHTINTBITS, segl->t_bottomheight<<HEIGHTINTBITS);
+#ifdef CD32X_DARKFAR
+            if (actionbits & AC_FARDARK)
+            {
+                /* every column one column of palette index 0 (black) */
+                static const inpixel_t r_black[16] = { 0 };
+                drawmip_t *mip = &toptex->mip[0];
+                toptex->maxmip = 0;
+                mip->data = (void *)r_black;
+                mip->pitch = 0;
+                mip->height = 16;
+                mip->drawcol = drawcol;
+                mip->colormaps = dc_colormaps;
+                mip->depth = 3;
+                mip->numdecals = 0;
+            }
+#endif
             lseg.first--;
         }
 

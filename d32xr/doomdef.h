@@ -69,6 +69,18 @@ typedef unsigned short inpixel_t;
 #define ATTR_OPTIMIZE_EXTREME
 #endif
 
+/* CD32X_PAUSE(n): CD32X SIGIL disc (tools/build_game.sh, off: NOIDLE=1) - a wait loop that polls a
+   register or a lock pauses about n * 0.17 us between tries (OpenLara CD32X's REV-1): the two SH2s
+   share one bus, and a loop that reads as fast as it can takes it again and again while the other
+   SH2 draws. The pause runs in registers from the cache and doesn't touch the bus. */
+#if defined(MARS) && defined(CD32X_IDLE)
+#define CD32X_PAUSE(n) do { int pause_ = (n); __asm volatile ("1:\n\tdt %0\n\tbf 1b" : "+r" (pause_) : : "t"); } while (0)
+#else
+#define CD32X_PAUSE(n) do { } while (0)
+#endif
+#define CD32X_PAUSE_LONG 40		/* about 7 us: waiting for the other SH2 to finish a job */
+#define CD32X_PAUSE_SHORT 8		/* about 1.4 us: a lock or the next wall */
+
 #ifdef MARS
 #define SPTR uint16_t
 #define LPTR_TO_SPTR(p) ((p) ? (uint16_t)(((uintptr_t)(p) - DATA_START_ADDRESS)>>2) : 0) // use with caution as pointer at the beginning of RAM address space will be mapped to a NULL pointer!

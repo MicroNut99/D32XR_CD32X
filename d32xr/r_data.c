@@ -639,6 +639,15 @@ typedef struct
 // R_InstallSpriteLump
 // Local function for R_InitSprites.
 //
+/* CD32X: shorter messages (they only show for a broken WAD): the DOOM disc's program must fit beside
+   Fusion's IWAD in the 4 MB cart */
+#ifdef CD32X
+#define SPR_ERR(what) "Sprite %s %c: bad rot"
+#define SPR_ERR2 "Sprite %s %c %c: 2 lumps"
+#else
+#define SPR_ERR(what) "R_InitSprites: Sprite %s frame %c has " what
+#define SPR_ERR2 "R_InitSprites: Sprite %s : %c : %c has two lumps mapped to it"
+#endif
 void
 R_InstallSpriteLump(const char* spritename, char letter, tempspriteframe_t* frame,
 	int lump, int rotation, boolean flipped)
@@ -649,12 +658,10 @@ R_InstallSpriteLump(const char* spritename, char letter, tempspriteframe_t* fram
 	{
 		// the lump should be used for all rotations
 		if (frame->rotate == 0)
-			I_Error("R_InitSprites: Sprite %s frame %c has "
-				"multip rot=0 lump", spritename, letter);
+			I_Error(SPR_ERR("multip rot=0 lump"), spritename, letter);
 
 		if (frame->rotate == 1)
-			I_Error("R_InitSprites: Sprite %s frame %c has rotations "
-				"and a rot=0 lump", spritename, letter);
+			I_Error(SPR_ERR("rotations and a rot=0 lump"), spritename, letter);
 
 		frame->rotate = 0;
 		for (r = 0; r < 8; r++)
@@ -666,17 +673,14 @@ R_InstallSpriteLump(const char* spritename, char letter, tempspriteframe_t* fram
 
 	// the lump is only used for one rotation
 	if (frame->rotate == 0)
-		I_Error("R_InitSprites: Sprite %s frame %c has rotations "
-			"and a rot=0 lump", spritename, letter);
+		I_Error(SPR_ERR("rotations and a rot=0 lump"), spritename, letter);
 
 	frame->rotate = 1;
 
 	// make 0 based
 	rotation--;
 	if (frame->lump[rotation] != -1)
-		I_Error("R_InitSprites: Sprite %s : %c : %c "
-			"has two lumps mapped to it",
-			spritename, letter, '1' + rotation);
+		I_Error(SPR_ERR2, spritename, letter, '1' + rotation);
 
 	frame->lump[rotation] = flipped ? lump|SL_FLIPPED : lump;
 }

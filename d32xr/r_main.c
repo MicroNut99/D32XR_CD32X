@@ -7,6 +7,17 @@
 #include "marshw.h"
 #endif
 
+#ifdef CD32X
+static unsigned short r_open_out[R_OPEN_OUT][SCREENWIDTH+4] __attribute__((aligned(16)));
+#endif
+
+#ifdef R_STATS
+int r_stat[10], r_stat_frame[2];		/* TEST_STATS: see R_RenderPlayerView */
+#endif
+#ifdef CD32X_DARKFAR
+static boolean r_wall_overflow;	/* the last frame had MAXWALLCMDS walls: R_Setup clears the view */
+#endif
+
 int16_t viewportWidth, viewportHeight;
 int16_t centerX, centerY;
 fixed_t centerXFrac, centerYFrac;
@@ -826,6 +837,21 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	}
 
 	viewportbuffer = (pixel_t*)I_ViewportBuffer();
+#ifdef CD32X_DARKFAR
+	if (r_wall_overflow)
+	{
+		/* the last frame ran out of walls (MAXWALLCMDS): what this one cannot draw stays black
+		   instead of showing the frame before last (flashing) */
+		int y, n = viewportWidth * (lowres ? 2 : 1) / 2;
+		uint16_t *row = (uint16_t *)viewportbuffer;
+		for (y = 0; y < viewportHeight; y++, row += 320 / 2)
+		{
+			uint16_t *p = row, *e = row + n;
+			while (p < e)
+				*p++ = 0;
+		}
+	}
+#endif
 
 	palette = 0;
 
@@ -889,6 +915,13 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	tempbuf = (unsigned short*)(((intptr_t)tempbuf + 3) & ~3);
 	tempbuf += 2; // padding
 	for (i = 0; i < MAXVISPLANES; i++) {
+#ifdef CD32X
+		if (i >= MAXVISPLANES - R_OPEN_OUT) {
+			/* in SDRAM, cache-through as the frame buffer (both SH2s use them), each with its pad */
+			vd->visplanes[i].open = (unsigned short *)((uintptr_t)&r_open_out[i - (MAXVISPLANES - R_OPEN_OUT)][2] | 0x20000000);
+			continue;
+		}
+#endif
 		vd->visplanes[i].open = tempbuf;
 		tempbuf += SCREENWIDTH+2;
 	}
@@ -923,6 +956,13 @@ static void R_Setup (int displayplayer, sector_t **vissectors_)
 	tempbuf += sizeof(uint8_t) * COLUMN_CACHE_SIZE * 2 / sizeof(*tempbuf);
 
 	//I_Error("%d", ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 - tempbuf) * 2);
+#ifdef R_STATS
+	if ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 < tempbuf)
+		I_Error("R_Setup: work area short by %d", (tempbuf - ((uint16_t *)I_FrameBuffer() + 64*1024-0x100)) * 2);
+#endif
+#ifdef R_STATS
+	r_stat[7] = ((uint16_t *)I_FrameBuffer() + 64*1024-0x100 - tempbuf) * 2;	/* work area left */
+#endif
 
 	I_SetThreadLocalVar(DOOMTLS_COLUMNCACHE, vd->columncache[0]);
 
@@ -1138,6 +1178,14 @@ void R_RenderPlayerView(int displayplayer)
 	t_bsp = I_GetFRTCounter() - t_bsp;
 
 	Mars_R_EndWallPrep();
+#ifdef CD32X_DARKFAR
+	Mars_ClearCacheLine(&vd->lastwallcmd);
+	r_wall_overflow = vd->lastwallcmd - vd->viswalls >= MAXWALLCMDS;
+#endif
+#ifdef R_STATS
+	Mars_ClearCacheLine(&vd->lastwallcmd);
+	r_stat_frame[0] = vd->lastwallcmd - vd->viswalls;
+#endif
 
 	if (!drawworld)
 	{
@@ -1155,14 +1203,37 @@ void R_RenderPlayerView(int displayplayer)
 
 	Mars_ClearCacheLine(&vd->lastsegclip);
 
+#ifndef CD32X
+	/* (CD32X: neither can happen - R_WallLatePrep drops a wall that would overrun the openings,
+	   R_Subsector stops at MAXVISSSEC - and the program needs the room) */
 	if (vd->lastsegclip - vd->segclip > MAXOPENINGS)
 		I_Error("lastsegclip > MAXOPENINGS: %d", vd->lastsegclip - vd->segclip);
 	if (vd->lastvissector - vd->vissectors > MAXVISSSEC)
 		I_Error("lastvissector > MAXVISSSEC: %d", vd->lastvissector - vd->vissectors);
+#endif
 
 	t_planes = I_GetFRTCounter();
 	R_DrawPlanes();
 	t_planes = I_GetFRTCounter() - t_planes;
+#ifdef R_STATS
+	/* emulator measurements (build_game.sh TEST_STATS=1): per frame, the walls, visplanes,
+	   visible subsector sectors and openings used against their limits; r_stat[] keeps the
+	   largest and how many frames reached each limit */
+	Mars_ClearCacheLine(&vd->lastvisplane);
+	Mars_ClearCacheLine(&vd->lastvissector);
+	{
+		int w = r_stat_frame[0], p = vd->lastvisplane - vd->visplanes;
+		int v = vd->lastvissector - vd->vissectors, o = vd->lastsegclip - vd->segclip;
+		r_stat[8]++;
+		if (w > r_stat[0]) r_stat[0] = w;
+		if (w >= MAXWALLCMDS) r_stat[1]++;
+		if (p > r_stat[2]) r_stat[2] = p;
+		if (p >= MAXVISPLANES) r_stat[3]++;
+		if (v > r_stat[4]) r_stat[4] = v;
+		if (v >= MAXVISSSEC) r_stat[5]++;
+		if (o > r_stat[6]) r_stat[6] = o;
+	}
+#endif
 
 	t_sprites = I_GetFRTCounter();
 	R_SpritePrep();

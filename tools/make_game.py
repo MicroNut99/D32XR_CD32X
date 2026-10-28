@@ -53,6 +53,7 @@ LEVEL_MODEL = (5117.50, 13.88, 9.75, 4.19, 0.00, 21.97, 0.00, 50.11, 0.00, 1.75,
 # the largest level that loaded and played (Plutonia MAP23: 157 KB); MAP28 (216 KB) and MAP29
 # (184 KB) stop with "Z_Malloc failed" before the first frame
 MAX_AUX = 64                     # MAX_AUX_TEXTURES in the CD32X build (p_setup.c)
+SIGIL_TITLE_TICS = 300           # SIGIL / SIGIL II: the title's time before the game starts by itself
 MAPLUMPS = ['THINGS', 'LINEDEFS', 'SIDEDEFS', 'VERTEXES', 'SEGS', 'SSECTORS', 'NODES', 'SECTORS', 'REJECT', 'BLOCKMAP']
 
 # the engine's switch list (p_switch.c) and animations (p_spec.c)
@@ -105,6 +106,15 @@ def die(msg):
 
 # ------------------------------------------------------------------------------------------------
 # the base game (the IWAD in the ROM, big-endian)
+
+
+START_NEAR = 768        # map units around player 1's start whose walls count START_BOOST times
+START_BOOST = 64
+SIGNATURE_TEX = {'SIGILTX2', 'SIGILTEX', 'SW1LION', 'SW2LION'}   # kept first: the packs' own art (SIGIL II's
+                       # demon face) and DOOM's lion-head switch (SIGIL II E6M8's start column)
+SIGNATURE_BOOST = 64
+SIGNATURE_STANDIN = {'SIGILTX2': ('MARBFACE', 'MARBFAC3', 'MARBFAC2'),   # no room: DOOM's demon faces,
+                     'SW1LION': ('SW1ROCK',), 'SW2LION': ('SW2ROCK',)}   # its skull switch on dark stone
 
 class Base:
     def __init__(self, path):
@@ -325,9 +335,30 @@ class Converter:
             die('%s is not a Doom II-format IWAD' % args.pc)
         self.base = Base(args.base)
         self.pal = Palette(self.pc.pal)
+        # --tex-image NAME[,NAME]=file[@x0,y0,x1,y1]: those textures' pictures from part of an image
+        # (fractions of its width / height; default the whole image), in the PWAD's palette - e.g.
+        # SIGIL II's lion-head switch as the Baphomet goat (build.sh)
+        for spec in self.args.tex_image or []:
+            names, src = spec.split('=', 1)
+            box = None
+            if '@' in src:
+                src, b = src.rsplit('@', 1)
+                box = [float(v) for v in b.split(',')]
+            from PIL import Image
+            im = Image.open(src).convert('RGB')
+            if box:
+                iw, ih = im.size
+                im = im.crop((int(box[0] * iw), int(box[1] * ih), int(box[2] * iw), int(box[3] * ih)))
+            for n in names.upper().split(','):
+                if n not in self.pc.tex:
+                    die('--tex-image: no texture %s' % n)
+                w, h = self.pc.tex[n][0], self.pc.tex[n][1]
+                idx = to_palette(area_resize_linear(im, w, h), self.pal).astype(np.uint8)
+                self.pc._cache[n] = (w, h, idx.tobytes(), bytes([1]) * (w * h))
         self.pack = Pack(args.hires) if args.hires else None
         self.fusion = args.fusion
         self.budget = args.budget * 1024
+        self.rom_maps, self.rom_lumps = set(), []
         self.report = []
         self.look_cache = {}
         self.budgets = None
@@ -400,10 +431,18 @@ class Converter:
         nm = lambda b: b.split(b'\0')[0].decode('latin1').upper()
         tex_w, flat_w = {}, {}
         masked_mid = set()
+        # the walls around player 1's start are what you see first: they count START_BOOST times
+        start = None
+        for k in range(0, len(M['THINGS']), 10):
+            x, y, _, ty, _ = struct.unpack('<hhhhh', M['THINGS'][k:k + 10])
+            if ty == 1:
+                start = (x, y)
         for k in range(0, len(M['LINEDEFS']), 14):
             v1, v2, flags, special, tag, s1, s2 = struct.unpack('<HHHHHHH', M['LINEDEFS'][k:k + 14])
             (x1, y1), (x2, y2) = verts[v1], verts[v2]
             ln = max(8, int(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5))
+            if start and (((x1 + x2) / 2 - start[0]) ** 2 + ((y1 + y2) / 2 - start[1]) ** 2) ** 0.5 < START_NEAR:
+                ln *= START_BOOST
             for s in (s1, s2):
                 if s == 0xffff or s >= len(sides):
                     continue
@@ -411,7 +450,7 @@ class Converter:
                 for o in (4, 12, 20):
                     t = nm(sd[o:o + 8])
                     if t and t != '-':
-                        tex_w[t] = tex_w.get(t, 0) + ln
+                        tex_w[t] = tex_w.get(t, 0) + ln * (SIGNATURE_BOOST if t in SIGNATURE_TEX else 1)
                         if o == 20 and s2 != 0xffff:
                             masked_mid.add(t)
         # flats: the floor / ceiling area of the sectors that use them (shoelace over the linedefs)
@@ -565,7 +604,14 @@ class Converter:
             cands = [t['name'] for t in B.tex if not t['masked'] and t['name'] not in taken and
                      (t['w'], t['h']) == (w, h) and B.picture(t['name']) is not None] or \
                     [t['name'] for t in B.tex if not t['masked'] and t['name'] not in taken and B.picture(t['name']) is not None]
-            c = self.closest('tex', frames[0], cands)
+            pair = [next((x for x in SIGNATURE_STANDIN.get(f, ()) if x in cands), None) for f in frames]
+            if all(pair) and len(set(pair)) == len(frames) > 1:     # a switch: the base game's look-alike pair
+                for f, c in zip(frames, pair):
+                    rename_t[f] = c
+                log.append('switch %s -> looks like %s (%s)' % ('/'.join(frames), '/'.join(pair), why))
+                return
+            c = next((x for x in SIGNATURE_STANDIN.get(frames[0], ()) if x in cands), None) or \
+                self.closest('tex', frames[0], cands)
             for f in frames:
                 rename_t[f] = c
             log.append('texture %s -> looks like %s (%s)' % (frames[0], c, why))
@@ -616,7 +662,7 @@ class Converter:
             work.append((wgt / (4096.0 * len(frames)), 'flat', kind, frames, wgt))
         for kind, frames, wgt in units:
             work.append((wgt * WALL_H / float(sum(tsize(f, 2) for f in frames)), 'tex', kind, frames, wgt))
-        work.sort(key=lambda x: -x[0])
+        work.sort(key=lambda x: (not set(x[3]) & SIGNATURE_TEX, -x[0]))
         for _, what, kind, frames, wgt in work:
             if what == 'flat':
                 place_flat(kind, frames)
@@ -716,6 +762,10 @@ class Converter:
     def map_budget(self, lumps):
         """RAM for the map's extras: measured (--budgets: free zone RAM after loading the map without
         extras, minus the margin), else K - the map's own footprint"""
+        if self.cur_map in self.rom_maps:
+            # a ROM map's extras stay in the ROM: no RAM (--rom-budget, or its own: --rom-budgets)
+            per = dict(x.split('=') for x in (self.args.rom_budgets or '').replace(',', ' ').split() if '=' in x)
+            return int(per.get(self.cur_map, self.args.rom_budget)) * 1024
         if self.budgets is not None:
             return self.budgets.get(self.cur_map, 0)
         # measured on Plutonia's 32 maps in ares: texture cache + level data = 177.4 KB (+-3 KB
@@ -770,7 +820,17 @@ class Converter:
         average in linear light, nearest palette colour in CIELAB with light error diffusion
         (smooth gradients in photos and paintings)"""
         from PIL import Image
-        src = Image.open(path).convert('RGBA')
+        if path.startswith('lump:'):
+            # a picture of the PWAD itself (SIGIL's SIGILINT, SIGIL II's widescreen SIGILIN2): DOOM's
+            # 320 x 200 screen is 4:3 with tall pixels - square pixels first (200 -> 240 lines), then
+            # the 4:3 middle as below (a 446-wide picture loses its sides, as on a 4:3 DOOM)
+            pw, ph, _, _, px, mk = pc_patch(self.pc.by[path[5:]]['data'])
+            pal = np.frombuffer(self.pc.pal, np.uint8).reshape(256, 3)
+            rgb = pal[np.frombuffer(bytes(px), np.uint8)].reshape(ph, pw, 3)
+            rgb = rgb * np.frombuffer(bytes(mk), np.uint8).reshape(ph, pw, 1)
+            src = Image.fromarray(rgb.astype(np.uint8)).resize((pw, ph * 6 // 5), Image.LANCZOS).convert('RGBA')
+        else:
+            src = Image.open(path).convert('RGBA')
         img = Image.new('RGBA', src.size, (0, 0, 0, 255))
         img.alpha_composite(src)                        # transparent -> black
         img = img.convert('RGB')
@@ -820,6 +880,8 @@ class Converter:
         else:
             lumps = self.build_sigil()
         write_pwad(out, lumps)
+        if self.args.rom_maps:
+            write_pwad(self.args.rom_maps, self.rom_lumps)
         return lumps
 
     def doom2_cd_tracks(self):
@@ -856,9 +918,13 @@ class Converter:
         for m, sky in maps:
             ml = self.map_lumps(m)
             self.cur_map = m
-            if self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416:
+            if m not in self.rom_maps and self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416:
                 sky = None                        # no room even for the 4-bit sky: the base game's sky
-            out += self.convert_map(m, ml, sky)
+            lumps = self.convert_map(m, ml, sky)
+            if m in self.rom_maps:
+                self.rom_lumps += lumps           # --rom-maps: into the ROM (tools/make_rommaps.py)
+            else:
+                out += lumps
         return out
 
     # ---- The Plutonia Experiment -----------------------------------------------------------------
@@ -964,14 +1030,21 @@ class Converter:
         self.map_names = {m: umap.get(m, {}).get('levelname', m) for m in maps}
         # maps the 32X's RAM cannot hold (the level alone, before any texture): left out, the
         # episode's "next" chain goes on to the next one that fits
+        # --rom-maps: the maps named by --rom go into the game's ROM instead (their read-only parts
+        # used in place, tools/make_rommaps.py) and stay in the episode
         fits, sizes = [], {}
+        want_rom = set(x.upper() for x in (self.args.rom or '').split(',') if x) if self.args.rom_maps else set()
         for m in maps:
             sizes[m] = self.level_size(self.map_lumps(m))
-            if sizes[m] <= self.args.maxlevel:
+            if m in want_rom:
+                self.rom_maps.add(m)
+                fits.append(m)
+            elif sizes[m] <= self.args.maxlevel:
                 fits.append(m)
         for m in maps:
             self.report.append('%s %-28s level %4.0f KB %s' % (m, '"%s"' % self.map_names[m], sizes[m],
-                               'ok' if m in fits else 'TOO BIG for the 32X (limit %d KB): left out' % self.args.maxlevel))
+                               'ROM map' if m in self.rom_maps else 'ok' if m in fits else
+                               'TOO BIG for the 32X (limit %d KB): left out' % self.args.maxlevel))
         if not fits:
             die('no %s map fits the 32X' % title)
         def nxt(m, key='next'):
@@ -1000,13 +1073,19 @@ class Converter:
         # the 11 songs on tracks --cdtrack .. --cdtrack + 10 (DMAPINFO cdTrack n = the disc's track n + 1)
         cdt = lambda song: self.args.cdtrack + order.index(song)
         if self.args.music == 'cd':
-            mus_cfg = ['    cdMusic = 1', '    titleCdTrack = %d' % cdt('D_INTRO'), '    intermissionCdTrack = %d' % cdt('D_INTER'),
+            mus_cfg = ['    cdMusic = 1', '    intermissionCdTrack = %d' % cdt('D_INTER'),
                        '    victoryCdTrack = %d' % cdt('D_INTER'), '    endCdTrack = %d' % cdt('D_INTER')]
         else:
             mus_cfg = ['    musicStream = 1', '    spcmDirs = "%s"' % spcm_dir]
-        dm = ['gameinfo', '{', '    titleMus = "D_INTRO"', '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
-              '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"', '    titleTime = 13000', '    titlePage = "title"',
-              '    creditsTime = 900', '    creditsPage = "credits1"', '    endText = "%s"' % txt(endtext),
+        # the title (the logo while the first map loads) is silent on the SIGIL CD audio disc: no
+        # title song -> S_StartSong stops the music (cdMusic, CD track 0)
+        dm = ['gameinfo', '{', '    titleMus = "%s"' % ('' if self.args.music == 'cd' else 'D_INTRO'),
+              '    intermissionMus = "D_INTER"', '    victoryMus = "D_INTER"',
+              '    endMus = "D_INTER"'] + mus_cfg + ['    borderFlat = "FLOOR7_2"',
+              # the title shows for SIGIL_TITLE_TICS, then the game starts by itself (no button; no
+              # credits pages, no attract demo) - Fusion's 13000 waited minutes for a press
+              '    titleTime = %d' % SIGIL_TITLE_TICS, '    titlePage = "title"',
+              '    creditsTime = 0', '    creditsPage = ""', '    endText = "%s"' % txt(endtext),
               '    endFlat = "MFLR8_3"', '\tendShowCast = 0', '\tstopFireTime = 0', '\ttitleStartPos = 0',
               '\tnoAttractDemo = 1', '}']
         # the map's sky goes by the base game's hell sky's name: its own SKY5 / SKY6 picture under that
@@ -1080,10 +1159,17 @@ def main():
     ap.add_argument('--game', choices=('plutonia', 'sigil', 'sigil2'), default='plutonia')
     ap.add_argument('--pc', required=True, nargs='+', help='the PC IWAD (and PWADs on top)')
     ap.add_argument('--title', help='SIGIL: the title picture')
-    ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture')
+    ap.add_argument('--tex-image', action='append', help='NAME[,NAME]=file[@x0,y0,x1,y1]: textures drawn '
+                    'from (part of) a picture')
+    ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture (a file, or lump:NAME '
+                    'for a picture in the PWAD)')
     ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',
                     help='SIGIL: streamed PCM files on the data track (spcm) or the disc\'s CD audio tracks (cd)')
     ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL --music cd: the cdTrack of its title song (11 tracks: title, E?M1-9, intermission)')
+    ap.add_argument('--rom-maps', help='SIGIL: a PWAD for the maps named by --rom (they go into the ROM: tools/make_rommaps.py)')
+    ap.add_argument('--rom', help='SIGIL with --rom-maps: the ROM maps, e.g. E5M4,E5M9')
+    ap.add_argument('--rom-budget', type=int, default=160, help='KB of ROM for a ROM map\'s textures, flats and sky')
+    ap.add_argument('--rom-budgets', help='ROM maps with their own budget, e.g. "E6M8=96"')
     ap.add_argument('--maxlevel', type=int, default=175, help='KB of RAM a level may take (bigger maps are left out)')
     ap.add_argument('--base', required=True)
     ap.add_argument('--fusion', required=True)

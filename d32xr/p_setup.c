@@ -49,6 +49,26 @@ byte		*rejectmatrix;			/* for fast sight rejection */
 
 VINT 		segspage = -1;
 
+#ifdef CD32X
+/* CD32X ROM maps: a map found in the IWAD (the game's ROM image in the RAM cart: tools/make_rommaps.py)
+   keeps its vertexes, segs, nodes, reject and blockmap there in the engine's own big-endian form
+   (segs in seg_t sorted as P_SortSegs does, nodes in node_t with the encoded boxes, the reject
+   matrix packed as P_LoadRejectMatrix does), used in place: no RAM for them. Its sidedefs are
+   side_t and its linedefs line_t + tags, copied into RAM (the game changes them); those, the
+   things, sectors and subsectors may be compressed (the engine's LZSS). Its textures, flats
+   and sky (the lumps after BLOCKMAP) are used in place too. Maps read from the CD are unchanged. */
+#ifdef CD32X_ROMMAPS
+static boolean P_RomMap(int lump)
+{
+	return W_IsIWad(lump);
+}
+#else
+/* only the ROM map disc needs it (build_game.sh with IWAD=): the DOOM disc's program stays
+   small enough for the 4 MB beside Fusion's IWAD */
+#define P_RomMap(lump) false
+#endif
+#endif
+
 mapthing_t	*deathmatchstarts, *deathmatch_p;
 
 VINT		*validcount;			/* increment every time a check is made */
@@ -76,6 +96,12 @@ void P_LoadVertexes (int lump)
 	mapvertex_t	*li;
 	
 	numvertexes = W_LumpLength (lump) / sizeof(mapvertex_t);
+#ifdef CD32X
+	if (P_RomMap(lump))
+		vertexes = W_POINTLUMPNUM(lump);	/* ROM map: big-endian, used in place */
+	else
+#endif
+	{
 	vertexes = Z_Malloc (numvertexes*sizeof(mapvertex_t) + 16,PU_LEVEL);
 	vertexes = (void*)(((uintptr_t)vertexes + 15) & ~15); // aline on cacheline boundary
 	data = W_GetLumpData(lump);
@@ -86,6 +112,7 @@ void P_LoadVertexes (int lump)
 	{
 		li->x = LITTLESHORT(ml->x);
 		li->y = LITTLESHORT(ml->y);
+	}
 	}
 
 	worldbbox[BOXLEFT] = INT16_MAX;
@@ -141,6 +168,14 @@ void P_LoadSegs (int lump)
 	return;
 #endif
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		numsegs = W_LumpLength (lump) / sizeof(seg_t);
+		segs = W_POINTLUMPNUM(lump);
+		return;
+	}
+#endif
 	numsegs = W_LumpLength (lump) / sizeof(mapseg_t);
 	segs = Z_Malloc (numsegs*sizeof(seg_t)+16,PU_LEVEL);
 	segs = (void*)(((uintptr_t)segs + 15) & ~15); // aline on cacheline boundary
@@ -425,6 +460,14 @@ void P_LoadNodes (int lump)
 	return;
 #endif
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		numnodes = W_LumpLength (lump) / sizeof(node_t);
+		nodes = W_POINTLUMPNUM(lump);
+		return;
+	}
+#endif
 	numnodes = W_LumpLength (lump) / sizeof(*mn);
 	data = W_GetLumpData(lump);
 	nodes = Z_Malloc (numnodes*sizeof(node_t) + 16,PU_LEVEL);
@@ -543,6 +586,34 @@ void P_LoadLineDefs (int lump)
 	maplinedef_t	*mld;
 	line_t			*ld;
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		/* a ROM map's linedefs: line_t[numlines] as the loader below leaves them, then the
+		   lines' tags (int16_t[numlines]); maybe compressed (decoded into the temp buffer) */
+		int16_t *tags;
+
+		numlines = W_LumpLength (lump) / (sizeof(line_t) + sizeof(int16_t));
+		lines = Z_Malloc (numlines*sizeof(line_t)+16,PU_LEVEL);
+		lines = (void*)(((uintptr_t)lines + 15) & ~15); // aline on cacheline boundary
+		data = W_GetLumpData(lump);
+		D_memcpy (lines, data, numlines*sizeof(line_t));
+		tags = (int16_t *)(data + numlines*sizeof(line_t));
+		numlinetags = 0;
+		for (i = 0; i < numlines; i++)
+			if (tags[i])
+				numlinetags++;
+		if (!numlinetags)
+			return;
+		numlinetags = (numlinetags + LINETAGS_HASH_SIZE - 1) & ~(LINETAGS_HASH_SIZE - 1);
+		linetags = Z_Malloc(sizeof(*linetags)*numlinetags*2, PU_LEVEL);
+		D_memset(linetags, -1, sizeof(*linetags)*numlinetags*2);
+		for (i = 0; i < numlines; i++)
+			if (tags[i])
+				P_SetLineTag(i, tags[i]);
+		return;
+	}
+#endif
 	numlines = W_LumpLength (lump) / sizeof(maplinedef_t);
 	lines = Z_Malloc (numlines*sizeof(line_t)+16,PU_LEVEL);
 	lines = (void*)(((uintptr_t)lines + 15) & ~15); // aline on cacheline boundary
@@ -638,6 +709,17 @@ void P_LoadSideDefs (int lump)
 	for (i=0 ; i<numtextures ; i++)
 		textures[i].usecount = 0;
 #endif	
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		/* a ROM map's sidedefs are side_t already (texture numbers looked up by the build) */
+		numsides = W_LumpLength (lump) / sizeof(side_t);
+		sides = Z_Malloc (numsides*sizeof(side_t)+16,PU_LEVEL);
+		sides = (void*)(((uintptr_t)sides + 15) & ~15); // aline on cacheline boundary
+		W_ReadLump (lump, sides);		/* maybe compressed */
+		return;
+	}
+#endif
 	numsides = W_LumpLength (lump) / sizeof(mapsidedef_t);
 	sides = Z_Malloc (numsides*sizeof(side_t)+16,PU_LEVEL);
 	sides = (void*)(((uintptr_t)sides + 15) & ~15); // aline on cacheline boundary
@@ -681,6 +763,13 @@ void P_LoadRejectMatrix (int lump)
 	int outsize;
 	unsigned outbit, outbyte;
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+	{
+		rejectmatrix = W_POINTLUMPNUM(lump);	/* packed already */
+		return;
+	}
+#endif
 	// compress the reject table, assuming it is symmetrical
 	outsize = (numsectors + 1) * numsectors / 2;
 	outsize = (outsize + 7) / 8;
@@ -732,11 +821,18 @@ void P_LoadBlockMap (int lump)
 	int		i;
 	int		count;
 
+#ifdef CD32X
+	if (P_RomMap(lump))
+		blockmaplump = W_POINTLUMPNUM(lump);	/* big-endian, in place */
+	else
+#endif
+	{
 	blockmaplump = Z_Malloc (W_LumpLength (lump),PU_LEVEL);
 	W_ReadLump (lump,blockmaplump);
 	count = W_LumpLength (lump)/2;
 	for (i=0 ; i<count ; i++)
 		blockmaplump[i] = LITTLESHORT(blockmaplump[i]);
+	}
 
 	bmaporgx = blockmaplump[0]<<FRACBITS;
 	bmaporgy = blockmaplump[1]<<FRACBITS;
@@ -927,6 +1023,7 @@ void P_SetupLevel (const char *lumpname, skill_t skill, const char *sky)
 	int gamezonemargin;
 	jagobj_t *skyheader;
 	boolean havesky;
+	boolean romlevel = false;
 
 	M_ClearRandom ();
 
@@ -957,9 +1054,24 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 	for (i = 0; i < ML_BLOCKMAP+1+MAX_AUX_TEXTURES; i++)
 		lumps[i] = lumpnum+i;
 
+#ifdef CD32X
+	if (P_RomMap(lumpnum))
+	{
+		/* a ROM map: read in place from the IWAD, no in-memory PWAD (its lump list only for the
+		   extra lumps after BLOCKMAP; the list ends at the next map's marker or the IWAD's end) */
+		for (i = 0; i < ML_BLOCKMAP+1+MAX_AUX_TEXTURES; i++)
+			if (!W_IsIWad(lumps[i]))
+				lumps[i] = -1;
+		W_CacheWADLumps(li, ML_BLOCKMAP+1+MAX_AUX_TEXTURES, lumps, false);
+		romlevel = true;
+	}
+	else
+#endif
+	{
 	W_CacheWADLumps(li, ML_BLOCKMAP+1+MAX_AUX_TEXTURES, lumps, true);
 
 	lumpnum = W_GetNumForName(lumpname);
+	}
 
 #if defined(USE_SMALL_LUMPS) && defined(ENABLE_SSF_MAPPER)
 	if (W_IsIWad(lumpnum+ML_SEGS))
@@ -1001,7 +1113,8 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 
 	P_GroupLines ();
 
-	P_SortSegs();
+	if (!romlevel)
+		P_SortSegs();
 
 	if (netgame == gt_deathmatch)
 	{
@@ -1071,8 +1184,12 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 				{
 					int n;
 					int lumpnum2 = textures[j].lumpnum;
+					if (romlevel)
+						data = W_POINTLUMPNUM(lumpnum+k);
+					else {
 					data = Z_Malloc (l->size, PU_LEVEL);
 					W_ReadLump(lumpnum+k, data);
+					}
 					for (n = 0; n < numtextures; n++)
 					{
 						if (textures[n].lumpnum == lumpnum2)
@@ -1086,8 +1203,12 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 			if (isflat) {
 				j = R_FlatNumForName(name);
 				if (j >= 0) {
+					if (romlevel)
+						data = W_POINTLUMPNUM(lumpnum + k);
+					else {
 					data = Z_Malloc (l->size, PU_LEVEL);
 					W_ReadLump(lumpnum + k, data);
+					}
 					R_SetFlatData(j, data, l->size);
 					continue;
 				}
@@ -1095,8 +1216,12 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 
 			// a sky?
 			if (havesky && !D_strcasecmp(name, sky)) {
+				if (romlevel)
+					data = W_POINTLUMPNUM(lumpnum + k);
+				else {
 				data = Z_Malloc (l->size, PU_LEVEL);
 				W_ReadLump(lumpnum + k, data);
+				}
 				skytexturep = R_SkipJagObjHeader(data, l->size, 256, 128, &skyheader);
 				continue;
 			}

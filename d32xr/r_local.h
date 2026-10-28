@@ -512,6 +512,7 @@ int R_DebugTexCache(r_texcache_t* c, char *buf, int nume, int elemsize);
 #define	AC_ADDSKY			512
 #define	AC_DRAWN			1024
 #define	AC_MIDTEXTURE		2048
+#define	AC_FARDARK			4096	/* CD32X: a far wall drawn as darkness (r_phase1.c) */
 
 typedef struct
 {
@@ -585,7 +586,18 @@ typedef struct
 	uint16_t 	*clipbounds;
 } viswall_t;
 
+#ifdef CD32X
+/* CD32X: SIGIL's scenes need 200-280 walls a frame; past the limit the farthest walls are
+   dropped and the floors and ceilings bleed (measured in ares, build_game.sh TEST_STATS). The
+   room: the frame buffer's spare lines, plus R_OPEN_OUT visplanes' open arrays moved into SDRAM
+   (r_main.c) - 3.9 KB of the primary SH2's stack space that it never reaches (marsonly.c's
+   marker: 7.1 KB used of 13.4, 2.4 KB margin left). The zone has nothing to give (11 KB less
+   and SIGIL II's maps no longer load). */
+#define	MAXWALLCMDS		230
+#define	R_OPEN_OUT		6
+#else
 #define	MAXWALLCMDS		165
+#endif
 
 /* A vissprite_t is a thing that will be drawn during a refresh */
 typedef struct vissprite_s
