@@ -271,7 +271,9 @@ CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 | te
   EverDrive-only (its ROM is built for the cartridge boot's map).
 - `NOPRELOAD=1`: the loader copies only the game's 4 MB and the game reads every WAD from the CD.
   The EverDrive's menu wipes its PSRAM, so whatever is in the cart is copied again at every start:
-  about 1 1/2 minutes of LOADING GAME (with the preload it was 5).
+  about 1 minute of LOADING GAME on the console (the owner, 28 Oct 2026); ares takes 88 s for it, and
+  290 s with the preload - ares loads slower than the console (README-CD32X.md of the ares build,
+  "Console timing").
 - `LOADER_CHECK=1`: each 32 KB of the game is checked and copied again if it came out wrong (the
   `4DE2` stop on the console, 27 Oct 2026); a stop shows its code on screen.
 - `EDCD_VER=4`: `_V4` on both names. Use the next number for each new build: the EverDrive keeps
@@ -285,9 +287,10 @@ CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 | te
   `discs/D32XR_CD32X_R2_EDCD_DOOM_V4_PAIN/` and the launcher `EDCD_DOOM_V4_PAIN.32X` (no `_NP`, so it
   never overwrites 4's). The loader also copies SOUNDS, DOOM, DOOM II and RESURRECTION into the
   EverDrive's PSRAM (pages 2-6, 10.1 MB) and the game reads them from there instead of the CD (TNT MINI
-  and PLUTONIA still from the CD). The EverDrive's menu wipes its PSRAM, so that is about 5 minutes of
-  LOADING GAME at every start (4: 1 1/2). The game is the same 4 MB as 4's. Tested in ares: the launcher,
-  the 5-minute load with its checks, SELECT GAME, DOOM II MAP21 (Ultra-Violence) and MAP23 from the
+  and PLUTONIA still from the CD). The EverDrive's menu wipes its PSRAM, so all of it is copied again at
+  every start: 14.1 MB instead of 4's 4 MB (ares: 290 s against 88 s; the console loads 4's in about a
+  minute, so this one should take some 3 1/2 - not yet timed on a console). The game is the same 4 MB as
+  4's. Tested in ares: the launcher, the load with its checks, SELECT GAME, DOOM II MAP21 (Ultra-Violence) and MAP23 from the
   EverDrive's memory, and a test copy with a Pain Elemental on MAP01 (it shows, spits Lost Souls). The
   preload reads have not run on a console yet (4 and earlier EverDrive builds were `NOPRELOAD=1`).
 - The save (the options and Fusion's checkpoint) is in the EverDrive's save bank (bank 31), not in
@@ -326,7 +329,7 @@ Fusion), part of it in stack space the game never reaches.
 | `SIGILPILLAR=0` | SIGIL | SIGIL II's lion-head switch stays the lion (default: the goat from `art/sigil-wallpaper.jpg`) |
 | `CART=ED EDCD=1` | both | the **Mega EverDrive PRO** build (section 4): the EverDrive as the 16 MB cart, plus the launcher `EDCD_DOOM.32X` for its SD card (start that with the disc in the Sega CD, not "Run Mega-CD"). The ROM is built for the cartridge boot's map, so that disc is EverDrive-only - README "The two memory maps" |
 | `LOADER_DIAG=1` | both | the loading screen off, so the Sub-CPU's green `STATE:` text shows: `4Cnn` is the chunk being copied. For a load that stops - the number says where, and whether it is still moving |
-| `NOPRELOAD=1` | both | nothing preloaded into the cart: the loader copies the game's 4 MB only and the game reads every WAD from the CD (D32XR's own way). For the EverDrive (`CART=ED`), whose menu wipes its PSRAM so the preload was copied again at every start: about 1 1/2 minutes of loading instead of 5. The disc and launcher get `_NP` in their names (`D32XR_CD32X_R2_EDCD_DOOM_NP`, `EDCD_DOOM_NP.32X`) |
+| `NOPRELOAD=1` | both | nothing preloaded into the cart: the loader copies the game's 4 MB only and the game reads every WAD from the CD (D32XR's own way). For the EverDrive (`CART=ED`), whose menu wipes its PSRAM so the preload was copied again at every start: 4 MB of loading instead of 14 (console: about 1 minute; ares: 88 s instead of 290). The disc and launcher get `_NP` in their names (`D32XR_CD32X_R2_EDCD_DOOM_NP`, `EDCD_DOOM_NP.32X`) |
 | `EDCD_VER=<n>` | both | with `CART=ED`: `_V<n>` on the disc's and the launcher's names (`D32XR_CD32X_R2_EDCD_DOOM_NP_V2`, `EDCD_DOOM_NP_V2.32X`), so a new build never overwrites the last one |
 | `LOADER_CHECK=1` | both | the game's 4 MB are checked 32 KB at a time against the build's own table, and a piece that came out wrong is copied again from the CD (up to 3 times; `4Bnn` shows for about 3 s when nn pieces were copied twice). A loader stop shows its code over the loading screen instead of a bar that just stops: `4Enn` piece nn never came out right, `4DE2` the whole ROM still wrong, `4DE6` it changed after its check |
 | `GENDEV=<folder>` | both | the D32XR devkit's folder (default `/opt/d32xr-dk/opt/toolchains/sega`) |
