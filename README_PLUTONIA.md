@@ -161,6 +161,55 @@ code): a map's own 8-bit sky after a map with the base game's 4-bit sky was draw
 **Not tested:** a real console; playing the maps through (the test builds leave each map after 5
 seconds: no fights, MAP11's special sectors not walked into, MAP30's boss not killed); the frame rate.
 
+## Playtest: MAP11 and MAP30 (ares, 29 Oct 2026)
+
+**How:** version 1c (4 MB RAM cart, `PLUTEX=1`), medium skill, in `ares-headless` with ares's **real Sega 32X
+hardware timing** (ares CD32X v1.3: Settings > Real Sega 32X Hardware Timing; `ARES_32X_TIMING=console`), and
+`TEST_PLAYTEST=1`: the map plays itself. It visits up to 12 of its monsters' places for 3 s each, turning
+a full circle and making a noise there (as a shot would); kills every monster from close by; sets off every
+line special from its front and stands in every special sector; then takes the exit. The frame rate is
+the 32X pictures shown per second; the counts come from the game itself (`pt_report`).
+
+**Frame rate** (32X pictures a second; the game shows at most 20):
+
+| | MAP11 "Hunted" | MAP30 "The Gateway of Hell" |
+|---|---|---|
+| Tour of the monsters' places, average | **13.2 fps** | **14.9 fps** |
+| The places, from slowest to fastest (3 s each) | 10.6 - 20.4 | 11.9 - 20.1 |
+| Slowest single second | 9 | 10 |
+| Setting off the line specials (all over the map) | 17.4 | 15.6 |
+| The same MAP30 tour with ares's own (faster) timing | - | 17.4 |
+
+The busiest views (open courtyards, many monsters awake) run at 10-12 fps, closed rooms and corridors
+at 16-20. MAP11's 18 arch-viles awake at once cost about the same as MAP30's open arena. The real
+hardware timing is ares's first calibration from the timing probe and has not yet been checked
+against a game's frame rate on the console: take these as estimates, best for comparing places.
+
+**Monster deaths:**
+
+| | MAP11 | MAP30 |
+|---|---|---|
+| Monsters at the start (medium) | 18 (all arch-viles) | 23 (6 chaingunners, 4 mancubi, 4 lost souls, 2 each of barons, arch-viles, revenants, arachnotrons, 1 Cyberdemon) |
+| Died | 18 (15 killed by the test, 3 by the others' fire) | 28: all 23, and 5 of the Icon of Sin's |
+| Raised by arch-viles | 0 (they cannot raise arch-viles) | 0 |
+| Kills at the intermission | 100% | 28 (the cube monsters count too) |
+| Boss deaths (`A_BossDeath`) | - | 9 (mancubi, arachnotrons, barons, Cyberdemon): no effect, as on the PC (MAP30 has no boss specials) |
+| The Icon of Sin | - | its spawner woke at the noise, shot 14 cubes, 12 became monsters (the other 2 were still flying); killing the brain ended the map (`A_BrainDie`), then the intermission and the cast |
+
+**Triggers:**
+- MAP11: all 51 line specials that are not the exit set off: the 6 switches and doors all worked (23,
+  31, 55 x2, 135, 137); 45 walk-over lines (doors 2 x4 and 90 x19, floors 38 x3, teleports 97 x12, monster
+  teleports 125 / 126 x7). Both special-11 sectors stood in (no stop: the new `p_spec.c` code); the
+  secret found (100%); the exit line (52) ended the map.
+- MAP30: all 28 line specials set off: both switches worked (14, 123), 26 walk-over lines (97 x11, 126
+  x8, 109 x4, 30, 37, 141); the damage sectors 5, 7 and 16 stood in.
+- No stop in any run: no "unknown special", no `Z_Malloc` failure, no other error.
+
+**What this does not cover:** the console itself; the player's own weapons (the test hurts the monsters
+directly; the brain was killed the same way, not with rockets through the wall); a full fight with
+every monster awake and shooting for minutes; the special-11 sectors ending the map at 10% health (the
+test's god mode keeps the health at 100%).
+
 ## Files
 
 | File | What it does |
@@ -174,6 +223,7 @@ seconds: no fights, MAP11's special sectors not walked into, MAP30's boss not ki
 | `d32xr/crt0.s` | the 32X+CD cartridge's `SEGA SSF` header (`CARTCD_ED`) |
 | `d32xr/d_main.c` | `P_CartLeave` at SELECT GAME |
 | `d32xr/p_spec.c` | sector special 11 (MAP11) |
+| `d32xr/p_tick.c`, `p_enemy.c`, `p_inter.c`, `doomdef.h` | the playtest (`TEST_PLAYTEST=1`, emulator testing only) |
 | `build.sh`, `tools/build_game.sh` | `PLUTEX=1` (and `CARTCD_ED`, `CD32X_AUX64` with `CARTCD=1`; `CARTCD_EDX` with `EDX=1`) |
 
 All of it is behind `PLUTEX=1`: without it every build is byte for byte the same as before (the game

@@ -62,8 +62,9 @@ fi
 # CDONLY=1 (build.sh MUSIC=sigil): the SIGIL CD audio disc - only cdMusic games play CD audio, the
 # music option CD means FM for the others (marssound.c, CD32X_CDONLY)
 [ -n "${CDONLY:-}" ] && sed -i '1i #define CD32X_CDONLY 1' "$B/marssound.c" "$B/g_game.c"
-# TEST_GOD=1: emulator testing only - the player takes no damage
-[ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->player) return;\n&|' "$B/p_inter.c"
+# TEST_GOD=1: emulator testing only - the player takes no damage (by its type: a monster's mobj->player
+# shares its place with the respawn id, so testing that made monsters unhurtable too)
+[ -n "${TEST_GOD:-}" ] && sed -i 's|^\tif ( !(target->flags \& MF_SHOOTABLE) )$|\tif (target->type == MT_PLAYER) return;\n&|' "$B/p_inter.c"
 # TEST_STATS=1: emulator testing only - r_main.c keeps the renderer's peak use against its limits (r_stat)
 [ -n "${TEST_STATS:-}" ] && sed -i '1i #define R_STATS 1' "$B/r_main.c" && sed -i '1i #define R_STATS_STACK 1' "$B/marsonly.c"
 # TEST_DEBUG=1: emulator testing only - D32XR's timing screen on from the start (fps, game logic, BSP,
@@ -77,6 +78,10 @@ fi
 [ -n "${TEST_WARP:-}" ] && sed -i "s/^\tstartmap = 1;\$/\tstartmap = $TEST_WARP;/" "$B/d_main.c"
 # TEST_SPECIAL=1: emulator testing only - the "unknown special" stop says the number first, and the sector
 [ -n "${TEST_SPECIAL:-}" ] && sed -i 's|"unknown special %i",sector->special);|"%i: unknown special, sector %i", sector->special, (int)(sector - sectors));|' "$B/p_spec.c"
+# TEST_PLAYTEST=1: emulator testing only - the map plays itself (p_tick.c PT_Tick: a tour of its monsters' places,
+# every monster killed, every line special and special sector set off, then the exit) and counts it all in
+# pt_report (doomdef.h) for an ares save state; with TEST_GOD=1 and TEST_WARP=n
+[ -n "${TEST_PLAYTEST:-}" ] && sed -i '1i #define CD32X_PLAYTEST 1' "$B/doomdef.h"
 # TEST_WALLS=n TEST_PLANES=n: emulator testing only - other renderer limits (MAXWALLCMDS 165, MAXVISPLANES 32)
 [ -n "${TEST_WALLS:-}" ] && sed -i "s/^#define\tMAXWALLCMDS\t\t165/#define\tMAXWALLCMDS\t\t$TEST_WALLS/" "$B/r_local.h"
 [ -n "${TEST_PLANES:-}" ] && sed -i "s/^#define\tMAXVISPLANES\t32/#define\tMAXVISPLANES\t$TEST_PLANES/" "$B/r_local.h"

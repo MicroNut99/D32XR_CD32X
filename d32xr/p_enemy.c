@@ -1090,6 +1090,11 @@ void A_VileChase (mobj_t* actor)
 					corpsehit->flags = info->flags;
 					corpsehit->health = info->spawnhealth;
 					corpsehit->target = NULL;
+#ifdef CD32X_PLAYTEST
+					pt_report.raises++;
+					if ((unsigned)corpsehit->type < sizeof(pt_report.raised))
+						pt_report.raised[corpsehit->type]++;
+#endif
 
 					return;
 				}
@@ -1388,6 +1393,9 @@ A_PainShootSkull
 
 	newmobj->target = actor->target;
 	A_SkullAttack(newmobj);
+#ifdef CD32X_PLAYTEST
+	pt_report.skulls++;
+#endif
 }
 
 
@@ -1504,6 +1512,9 @@ void A_BossDeath (mobj_t *mo)
 	line_t		junk;
 	int			mapspecials = gamemapinfo->specials;
 		
+#ifdef CD32X_PLAYTEST
+	pt_report.bossdeath++;
+#endif
 	if (mo->type == MT_BRUISER && !(mapspecials & MI_BARON_SPECIAL))
 		return;			/* bruisers apear on other levels */
 	if (mo->type == MT_CYBORG && !(mapspecials & MI_CYBER_SPECIAL))
@@ -1664,6 +1675,9 @@ void A_BrainExplode (mobj_t* mo)
 
 void A_BrainDie (mobj_t *mo)
 {
+#ifdef CD32X_PLAYTEST
+	pt_report.braindie++;
+#endif
 	G_ExitLevel ();
 }
 
@@ -1723,6 +1737,9 @@ void A_BrainSpit(mobj_t *mo)
 	newmobj->target = targ;
 
 	S_StartSound(NULL, sfx_bospit);
+#ifdef CD32X_PLAYTEST
+	pt_report.spits++;
+#endif
 }
 
 // travelling cube sound
@@ -1797,6 +1814,9 @@ void A_SpawnFly(mobj_t *mo)
 
 	// remove self (i.e., cube).
 	P_RemoveMobj(mo);
+#ifdef CD32X_PLAYTEST
+	pt_report.flies++;
+#endif
 }
 
 //

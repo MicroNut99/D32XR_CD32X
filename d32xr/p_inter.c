@@ -627,6 +627,10 @@ void P_KillMobj (mobj_t *source, mobj_t *target)
 	mobj_t			*mo;
 	const mobjinfo_t* targinfo = &mobjinfo[target->type];
 
+#ifdef CD32X_PLAYTEST
+	if (target->flags & MF_COUNTKILL)
+		pt_report.deaths++;
+#endif
 	target->flags &= ~(MF_SHOOTABLE|MF_FLOAT|MF_SKULLFLY);
 	if (target->type != MT_SKULL)
 		target->flags &= ~MF_NOGRAVITY;

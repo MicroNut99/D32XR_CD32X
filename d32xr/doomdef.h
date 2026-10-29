@@ -764,6 +764,33 @@ void	*W_CacheLumpNum (int lump, int tag);
 void	*W_CacheLumpName (const char *name, int tag);
 
 boolean W_IsIWad(int lump);
+#ifdef CD32X_PLAYTEST
+/* PLAYTEST (tools/build_game.sh TEST_PLAYTEST=1, emulator testing only): p_tick.c PT_Tick plays the map by
+   itself - a tour of its monsters' places (frame rate), every monster killed, every line special and special
+   sector set off, then the exit - and counts in pt_report (read from an ares save state) */
+typedef struct
+{
+	int		magic;			/* 'PTST' */
+	int		map, phase, point, tic;	/* phase: 1 tour, 2 kills, 3 lines, 4 sectors, 5 exit, 6 done */
+	int		monsters0;		/* MF_COUNTKILL monsters at the start */
+	int		deaths;			/* MF_COUNTKILL deaths (P_KillMobj): the test's, infighting, telefrags */
+	int		testkills;		/* P_DamageMobj calls by the test */
+	int		raises;			/* corpses an arch-vile raised */
+	int		skulls;			/* lost souls a Pain Elemental spawned */
+	int		spits, flies;		/* the Icon of Sin's cubes, the monsters they made */
+	int		bossdeath, braindie;	/* A_BossDeath, A_BrainDie calls */
+	int		left;			/* MF_COUNTKILL monsters alive after the kills */
+	int		lines, linesused;	/* line specials set off; P_UseSpecialLine said yes */
+	int		sectors, secrets;	/* special sectors visited; the player's secrets */
+	int		killcount, exits, exitspecial;
+	int		eyes;			/* the Icon of Sin's spawners woken by the test (as the player's first shot would) */
+	uint8_t	lineact[144], lineused[144];	/* by line special */
+	uint8_t	secvisit[32];			/* by sector special */
+	uint8_t	kills[160], raised[160];	/* by mobj type: the test's kills, the raised corpses */
+} pt_report_t;
+extern pt_report_t pt_report;
+void PT_Tick(void);
+#endif
 #ifdef CD32X_PLUTEX
 int W_ReadLumpToCart(int lump, uint32_t cartoff);
 void P_CartLeave(void);

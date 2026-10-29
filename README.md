@@ -379,7 +379,10 @@ Fusion), part of it in stack space the game never reaches.
 dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits; `TEST_EXIT=1` every level ends by itself after
 about 300 frames (to see the intermission and the next loading screen); `TEST_WARP=n` a game the title
 starts by itself (Plutonia, the SIGILs) starts at MAPn (with `TEST_EXIT=1`: a run through the maps from
-there); `TEST_SPECIAL=1` the "unknown special" stop shows the number and the sector; `TEST_DEBUG=1` D32XR's
+there); `TEST_SPECIAL=1` the "unknown special" stop shows the number and the sector; `TEST_PLAYTEST=1` the map plays
+itself (a tour of its monsters' places, every monster killed, every line special and special sector set
+off, then the exit; with `TEST_GOD=1` and `TEST_WARP=n`) and counts it all in `pt_report`, read from an
+ares SDRAM dump (`ares-headless --dump-sdram`; README_PLUTONIA.md "Playtest"); `TEST_DEBUG=1` D32XR's
 timing screen on from the start (in a disc you play: Options + MODE; its times read 0 in ares).
 
 **The build's tools** (`tools/`):
