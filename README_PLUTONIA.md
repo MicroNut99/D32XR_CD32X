@@ -99,6 +99,39 @@ DOOM II's tracks for the same map numbers).
 | 5c: 32X+CD, `EDX=1` | yes | **Mega EverDrive X3 / X5 / X7 only** (the same write bit; the save where their SRAM is, the upper half of bank 31); not run on one yet |
 | 1, 1b, 4, 4b, 5 (no `PLUTEX`) | no | Plutonia as before: look-alikes, DOOM II's sky, no MAP28 / MAP29, and MAP11's two special sectors stop the game |
 
+## Which maps change the most
+
+Compared with Plutonia before the restoration (no `PLUTEX`), version 5b (32X+CD, Mega EverDrive PRO): the
+look-alikes each map loses (its own walls and floors now drawn as themselves), and its sky. From the
+table above and `build/plutonia_report.txt`.
+
+| Map | Name | Its own textures back | Sky |
+|---|---|---|---|
+| MAP28 | The Sewers | not in the game before; now playable (18 look-alikes left) | DOOM II's |
+| MAP29 | Odyssey of Noises | not in the game before; now playable (5 left) | DOOM II's |
+| MAP25 | The Temple of Darkness | 42 (42 -> 0) | DOOM II's |
+| MAP20 | The Death Domain | 41 (42 -> 1) | DOOM II's |
+| MAP26 | Bunker | 41 (46 -> 5) | DOOM II's |
+| MAP10 | Onslaught | 39 (40 -> 1) | DOOM II's |
+| MAP22 | Impossible Mission | 36 (44 -> 8) | DOOM II's |
+| MAP13 | The Crypt | 35 (50 -> 15) | DOOM II's |
+| MAP06 | Baron's Lair | 34 (35 -> 1) | **its own** |
+| MAP23 | Tombstone | 34 (36 -> 2) | **its own** |
+| MAP09 | Abattoire | 33 (33 -> 0) | **its own** |
+| MAP30 | The Gateway of Hell | 31 (40 -> 9) | DOOM II's |
+| MAP08 | Realm | 29 (30 -> 1) | **its own** |
+| MAP31 | Cyberden | 28 (28 -> 0) | **its own** |
+
+- **The most different to look at:** MAP06, MAP23, MAP09, MAP08 and MAP31 - nearly all their textures
+  and their own sky.
+- **In play:** MAP11 "Hunted" - its two special sectors no longer stop the game.
+- **The latest fixes:** MAP25-27 no longer stop with "unknown special" or "Z_Malloc failed" (each map
+  reads only its own cart block), and the sky fix.
+- **The least change:** MAP21 "Slayer" (only its sky; it had no look-alikes), MAP15 "The Twilight" (its
+  sky; its 3 look-alikes stay), MAP24 "The Final Frontier" and MAP07 "Caughtyard" (2 and 3 textures, and
+  their own sky).
+- **The 4 MB RAM cart (1c):** a few more stay look-alikes, 95 in all instead of 81 (the table above).
+
 ## What it isn't
 
 - **Not every texture.** 81 walls and floors (95 on the 4 MB cart) are still drawn as a base-game
