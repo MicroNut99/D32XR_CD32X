@@ -159,8 +159,6 @@ table above and `build/plutonia_report.txt`.
   RAM cart or a Mega EverDrive in its SSF mode. The 32X+CD cartridge comes in two builds, 5b for the PRO
   and 5c for the X3 / X5 / X7: never swap them (each saves where the other cart's OS keeps its own data).
   On a real ROM cartridge or another flash cart, use 5 without `PLUTEX`.
-- **Not on a console yet.** Everything above was checked in ares (see "Tested"). The cart writes use the
-  same steps as the saves, which do run on the console, but this build has not.
 - **Not included:** no game data is in the repository or the build's source. You need your own
   `plutonia.wad` (and `doom2.wad` for `PAIN=1`; the optional 1K texture pack in `data/hires/`).
 
