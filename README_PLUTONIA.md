@@ -6,7 +6,7 @@ repository) by `tools/make_game.py`, and it runs on DOOM CD32X Fusion's engine (
 
 This file is about the restoration: what the 32X version of Plutonia was missing, what was done about
 it, and what is still not the PC game. The build commands are in `README.md` ("Building": versions 1c,
-4c, 4d and 5b, all with `PLUTEX=1`).
+4c, 4d, 5b and 5c, all with `PLUTEX=1`).
 
 ## What it is
 
@@ -97,6 +97,7 @@ DOOM II's tracks for the same map numbers).
 | 1c: 4 MB RAM cart disc | yes | after a power-off in the middle of Plutonia, the next start copies the game again (about a minute, like the first start) |
 | 4c / 4d: Mega EverDrive PRO (EDCD) | yes | every start copies the game anyway (the EverDrive's menu wipes its memory) |
 | 5b: 32X+CD | yes | **Mega EverDrive PRO only** (its SSF mode: the game writes its own memory); saves in the PRO's save memory |
+| 5c: 32X+CD, `EDX=1` | yes | **Mega EverDrive X3 / X5 / X7 only** (the same write bit; the save where their SRAM is, the upper half of bank 31); not run on one yet |
 | 1, 1b, 4, 4b, 5 (no `PLUTEX`) | no | Plutonia as before: look-alikes, DOOM II's sky, no MAP28 / MAP29, and MAP11's two special sectors stop the game |
 
 ## What it isn't
@@ -121,8 +122,9 @@ DOOM II's tracks for the same map numbers).
   low-detail options and the black patches it leaves in some outdoor spots (as in Fusion) all apply. The
   busiest maps (MAP32's crowd, the open maps) run slower; the frame rate there has not been measured.
 - **Not for a plain cartridge.** The restored textures need a cart whose memory the game can write: the
-  RAM cart or the Mega EverDrive PRO. The 32X+CD version with `PLUTEX=1` does not work on the EverDrive
-  X3 / X5 / X7 or a real ROM cartridge (use 5 without `PLUTEX` there).
+  RAM cart or a Mega EverDrive in its SSF mode. The 32X+CD cartridge comes in two builds, 5b for the PRO
+  and 5c for the X3 / X5 / X7: never swap them (each saves where the other cart's OS keeps its own data).
+  On a real ROM cartridge or another flash cart, use 5 without `PLUTEX`.
 - **Not on a console yet.** Everything above was checked in ares (see "Tested"). The cart writes use the
   same steps as the saves, which do run on the console, but this build has not.
 - **Not included:** no game data is in the repository or the build's source. You need your own
@@ -141,6 +143,7 @@ those switches the game program is the one the build commands make.
 | 4d: EverDrive PRO, 16 MB | the launcher, the loader (with its check), SELECT GAME, MAP26, MAP27, MAP28 |
 | 4c: EverDrive PRO, no preload | the launcher, the loader, SELECT GAME, MAP28, MAP29 |
 | 5b: 32X+CD, EverDrive PRO | the cartridge boot, SELECT GAME, MAP28, MAP29, MAP30 |
+| 5c: 32X+CD, X-series build | in ares, whose EverDrive is the PRO (it ignores the X bit): the cartridge boot, SELECT GAME, MAP28, MAP29, MAP30; the quick saves at the map exits went to the upper 256 KB of bank 31 (odd bytes: "PLUTONIA.WAD", "The Gateway of Hell"), the lower half untouched. Not on an X3 / X5 / X7 |
 
 Also checked, on the first test builds (the same cart code): quitting to SELECT GAME puts the block
 back byte for byte (4 MB cart, EverDrive 16 MB, 32X+CD); MAP01's own slime on the 32X+CD cartridge (it
@@ -167,11 +170,12 @@ seconds: no fights, MAP11's special sectors not walked into, MAP30's boss not ki
 | `tools/make_cartblk.py` | the block in the game's IWAD (`CARTBLK`, `CARTREC`) |
 | `d32xr/p_setup.c` | the block written at a map's load, the pictures and their own sizes, `P_CartLevel` for MAP28 / MAP29, the block put back (`P_CartLeave`) |
 | `d32xr/w_wad.c`, `marshw.c` | a lump from the CD into the cart (`W_ReadLumpToCart`, `Mars_CartWrite`) |
-| `d32xr/src-md/crt0.s` | the 68000's command 16 (`cart_write`); the 32X+CD cartridge's save in the PRO's save bank (`CARTCD_ED`) |
+| `d32xr/src-md/crt0.s` | the 68000's command 16 (`cart_write`); the 32X+CD cartridge's save in the PRO's save bank (`CARTCD_ED`), or in the X-series' SRAM with the X bit (`CARTCD_EDX`) |
+| `d32xr/src-md/everdrive.c` | D32XR's EverDrive check with the X bit (`CARTCD_EDX`) |
 | `d32xr/crt0.s` | the 32X+CD cartridge's `SEGA SSF` header (`CARTCD_ED`) |
 | `d32xr/d_main.c` | `P_CartLeave` at SELECT GAME |
 | `d32xr/p_spec.c` | sector special 11 (MAP11) |
-| `build.sh`, `tools/build_game.sh` | `PLUTEX=1` (and `CARTCD_ED`, `CD32X_AUX64` with `CARTCD=1`) |
+| `build.sh`, `tools/build_game.sh` | `PLUTEX=1` (and `CARTCD_ED`, `CD32X_AUX64` with `CARTCD=1`; `CARTCD_EDX` with `EDX=1`) |
 
 All of it is behind `PLUTEX=1`: without it every build is byte for byte the same as before (the game
 programs of the RAM cart, EverDrive and 32X+CD builds and PLUTONIA.WAD were compared).

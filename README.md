@@ -143,6 +143,7 @@ skies"; the same versions with `PLUTEX=1` added and a new name):
 | 4c. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_NP_V5_PAIN_PLUTEX.32X` |
 | 4d. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_V5_PAIN_PLUTEX.32X` |
 | 5b. DOOM 32X+CD | **Mega EverDrive PRO only** (its SSF mode: the game writes its own memory) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 DISC_NAME=DOOM32XCD_V2 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V2/`: `DOOM32XCD_V2.32x` + `DOOM32XCD_V2.cue` / `.bin` |
+| 5c. DOOM 32X+CD for the X-series | **Mega EverDrive X3 / X5 / X7 only** (the same SSF write bit; not tested on them yet) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 EDX=1 DISC_NAME=DOOM32XCD_V2X ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V2X/`: `DOOM32XCD_V2X.32x` + `DOOM32XCD_V2X.cue` / `.bin` |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
 `DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
@@ -347,6 +348,7 @@ Fusion), part of it in stack space the game never reaches.
 | `BRAMSAVE=1` | both | the save as the file `D32XR_DOOM_` (32 blocks) in the Sega CD's backup RAM instead of the cart's save area; the first boot moves a cart save over (1b). The default disc name gets `_BRAM`. Not with `CART=ED` |
 | `CARTCD=1` | DOOM | the 32X+CD version (5): the game as a cartridge ROM for a flash cart's SD card + the disc it reads; names get `_32XCD`. Not with `CART`, `EDCD`, `CART4`, `BRAMSAVE` or `ROMMAPS` |
 | `PLUTEX=1` | DOOM | Plutonia's own walls, floors and skies, and MAP28 / MAP29 (section "Plutonia's own walls, floors and skies"). The names get `_PLUTEX`. With `CARTCD=1` the cartridge is for the Mega EverDrive PRO only. Not with `ROMMAPS` |
+| `EDX=1` | DOOM | with `CARTCD=1 PLUTEX=1` (5c): the cartridge for the Mega EverDrive X3 / X5 / X7 instead of the PRO - its save in the upper 256 KB of bank 31, CTRL0's X bit (32X mode) set. The names get `_X`. Never run 5b on an X-series cart or 5c on a PRO: each writes its save where the other cart's OS keeps its own data |
 | `PAIN=1` | DOOM | the Pain Elemental (from D32XR, 23-25 Oct 2026; its data from your `data/doom2.wad`): section "The Pain Elemental". The disc and launcher names get `_PAIN`. Not with `ROMMAPS` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
@@ -545,6 +547,15 @@ EverDrive's PSRAM), so the game can write its own image while it runs.
   and the save in its save bank (bank 31, at piece 11's place as the EDCD discs; the header declares save
   RAM so the EverDrive keeps it on the SD card). The cartridge also reads up to 64 extra lumps per map
   (`CD32X_AUX64`), as the CD32X builds do: with the cartridge build's 32 a test build lost MAP01's slime.
+- **32X+CD on the X3 / X5 / X7 (`EDX=1`, 5c, `CARTCD_EDX`):** krikzz's extended SSF notes for them
+  (22.09.2014) give the same write bit (CTRL0 `0xA130F0`: `P X W L . . . . . . . R R R R R`, W "ROM memory
+  write protect"), so `PLUTEX=1` works the same way. Two things differ from the PRO: their battery SRAM is
+  the **upper** 256 KB of bank 31 (the rest of banks 30-31 is their OS's; on the PRO the save is the lower
+  256 KB and its OS keeps the upper), and the X bit ("32x mode, should be set in case if game use 32x").
+  5c saves there, on the odd bytes, as D32XR's own EverDrive save code does (`rd_med_sram`), keeps D32XR's
+  own header (save RAM `0x200001`-`0x207FFF`), and sets X in every write to CTRL0 (`0xC000`, with W
+  `0xE000`; the PRO took `0xE000` on the console too, CD32X BootCamp `EDTEST_X`). Tested in ares only,
+  which emulates the PRO: an X-series cart has not run it.
 - **Room:** the RAM cart builds still end below the 4 MB cart's save area (1c: 8.9 KB to spare). The
   PLUTONIA.WAD directory stays within the 68000's 16 KB cache of it (910 lumps): a first version with one
   lump per picture had 1698 and lost the intermission's pictures.
@@ -714,6 +725,7 @@ the Sega CD by itself. The CD-boot disc is unchanged, byte for byte.
 | `d32xr/info.c`, `info.h`, `p_enemy.c`, `sounds.c`, `sounds.h`, `f_main.c` | `CD32X_PAIN` (`PAIN=1`): the Pain Elemental, D32XR's own code (section "The Pain Elemental"). |
 | `d32xr/p_setup.c`, `w_wad.c`, `marshw.*`, `d_main.c`, `doomdef.h`, `src-md/crt0.s`, `p_spec.c` | `CD32X_PLUTEX` (`PLUTEX=1`): a Plutonia map's pictures and a big map's read-only lumps written into the IWAD's cart block (`CARTMAP`, `CARTDATA`, the 68000's command 16 `cart_write`), a picture's own size for its donor name, the block put back for the other games (`P_CartLeave` at SELECT GAME, `CARTREC`); a map's own 8-bit sky drawn as 8-bit after a 4-bit one; sector special 11 (Plutonia MAP11) (section "Plutonia's own walls, floors and skies"). |
 | `d32xr/crt0.s`, `src-md/crt0.s`, `p_setup.c` | `CARTCD_ED` and `CD32X_AUX64` (`CARTCD=1 PLUTEX=1`): the 32X+CD cartridge as a Mega EverDrive PRO SSF ROM (`SEGA SSF`, the save in its save bank), 64 extra lumps per map. |
+| `d32xr/crt0.s`, `src-md/crt0.s`, `src-md/everdrive.c` | `CARTCD_EDX` (`CARTCD=1 PLUTEX=1 EDX=1`): that cartridge for the Mega EverDrive X3 / X5 / X7 (the save in the upper 256 KB of bank 31, odd bytes; CTRL0's X bit set in every write; D32XR's own save RAM header). |
 | `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `p_tick.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c`, `r_phase8.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (both discs, `CD32X_IDLE`; README "Frame rate"). `r_data.c`: shorter sprite-setup error texts (room for them on the DOOM disc). |
 
 ## The boot stack

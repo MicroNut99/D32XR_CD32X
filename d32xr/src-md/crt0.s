@@ -490,7 +490,11 @@ do_main:
         move.w  #0x0002,0xA130F0    /* standard mapping, sram disabled */
         bra.b   3f
 2:
+.ifdef CARTCD_EDX
+        move.w  #0xC000,0xA130F0    /* EDX: the same, X (32X mode) kept set */
+.else
         move.w  #0x8000,0xA130F0    /* MED/MSD => map bank 0 to page 0, write disabled */
+.endif
 3:
         clr_rv
         move.w  #0x2000,sr          /* enable ints */
@@ -755,6 +759,21 @@ read_sram_cart:
 | ("SEGA SSF": the write bit PLUTEX needs).  The PRO takes no SRAM switch there, so the save is in its save
 | bank (bank 31, kept on its SD card, the header declaring save RAM) through CTRL1 (the window at
 | 0x080000), at piece 11's place as on the EDCD discs (ED-SAVE)
+.ifdef CARTCD_EDX
+| CARTCD_EDX (build.sh EDX=1): the Mega EverDrive X3 / X5 / X7 instead (krikzz's extended SSF notes for them,
+| 22.09.2014): their battery SRAM is the UPPER 256 KB of bank 31 (the rest of banks 30-31 is their OS's, the
+| reverse of the PRO), its odd bytes as D32XR's own EverDrive saves (rd_med_sram); CTRL0's X bit (32X
+| mode, "should be set in case if game use 32x") in every CTRL0 write
+        add.l   d0,d0
+        lea     0x080000+0x40000,a0
+        sh2_wait
+        set_rv
+        move.w  #0xC000,0xA130F0    /* P + X */
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.b  1(a0,d0.l),d1
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+        bra.w   exit_rd_sram
+.else
         lea     0x080000+0xB000,a0
         sh2_wait
         set_rv
@@ -763,6 +782,7 @@ read_sram_cart:
         move.b  0(a0,d0.l),d1
         move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
         bra.w   exit_rd_sram
+.endif
 .endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   rd_msd_sram
@@ -867,6 +887,20 @@ write_sram_cart:
 .endif
 .ifdef CARTCD_ED
 | CARTCD_ED: the save bank (see read_sram)
+.ifdef CARTCD_EDX
+| CARTCD_EDX: the X-series' battery SRAM (see read_sram)
+        add.l   d1,d1
+        lea     0x080000+0x40000,a0
+        sh2_wait
+        set_rv
+        move.w  #0xC000,0xA130F0    /* P + X */
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.w  #0xE000,0xA130F0    /* P + X + W, for this store only */
+        move.b  d0,1(a0,d1.l)
+        move.w  #0xC000,0xA130F0    /* W off */
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+        bra.w   exit_wr_sram
+.else
         lea     0x080000+0xB000,a0
         sh2_wait
         set_rv
@@ -877,6 +911,7 @@ write_sram_cart:
         move.w  #0x8000,0xA130F0    /* off */
         move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
         bra.w   exit_wr_sram
+.endif
 .endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   wr_msd_sram
@@ -956,7 +991,11 @@ cart_write:
         move.w  #0xA000,0xA130F0    /* ED: the write bit on, for this copy only */
 .endif
 .ifdef CARTCD_ED
+.ifdef CARTCD_EDX
+        move.w  #0xE000,0xA130F0    /* the X-series: P + X + W, for this copy only */
+.else
         move.w  #0xA000,0xA130F0    /* the EverDrive PRO: the write bit on, for this copy only */
+.endif
 .endif
         addq.l  #3,d1
         lsr.l   #2,d1               /* longs */
@@ -969,7 +1008,11 @@ cart_write:
         move.w  #0x8000,0xA130F0    /* off */
 .endif
 .ifdef CARTCD_ED
+.ifdef CARTCD_EDX
+        move.w  #0xC000,0xA130F0    /* W off, X kept */
+.else
         move.w  #0x8000,0xA130F0    /* off */
+.endif
 .endif
         clr_rv
         move.w  0xA15100,d2

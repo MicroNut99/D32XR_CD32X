@@ -44,6 +44,13 @@ fi
 # CARTCD_ED=1 (build.sh CARTCD=1 PLUTEX=1): the cartridge for the Mega EverDrive PRO's SSF mode ("SEGA SSF",
 # its write bit for PLUTEX, the save in its save bank: crt0.s, src-md/crt0.s)
 [ -n "${CARTCD_ED:-}" ] && sed -i '1i .equ CARTCD_ED, 1' "$B/crt0.s" "$B/src-md/crt0.s"
+# CARTCD_EDX=1 (build.sh CARTCD=1 PLUTEX=1 EDX=1): that cartridge for the Mega EverDrive X3 / X5 / X7 instead -
+# its save in the upper 256 KB of bank 31 (their battery SRAM), CTRL0's X bit (32X mode) in every write to it
+# (crt0.s, src-md/crt0.s, src-md/everdrive.c)
+if [ -n "${CARTCD_EDX:-}" ]; then
+  sed -i '1i .equ CARTCD_EDX, 1' "$B/crt0.s" "$B/src-md/crt0.s"
+  sed -i '1i #define CARTCD_EDX 1' "$B/src-md/everdrive.c"
+fi
 # CARTCD=1 PLUTEX=1 (build.sh): the 32X+CD cartridge reads up to 64 extra lumps per map, as the CD32X build
 # (p_setup.c MAX_AUX_TEXTURES; the cartridge build's 32 is enough for the plain PLUTONIA.WAD - 21 at most -,
 # not for PLUTEX's, whose planner allows 64): CD32X_AUX64

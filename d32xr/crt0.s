@@ -59,10 +59,14 @@
         .ascii  "RA"                    /* External RAM */
         .byte   0xF8                    /* don't clear + odd bytes */
         .byte   0x20                    /* SRAM */
+.ifdef CARTCD_EDX
+        .long   0x00200001,0x00207FFF   /* EDX: the X3 / X5 / X7 - D32XR's own SSF header (its saves: src-md/crt0.s) */
+.else
 .ifdef CARTCD_ED
         .long   0x00200001,0x0023FFFF   /* the PRO keeps its save bank (as the EDCD launchers declare it) */
 .else
         .long   0x00200001,0x00207FFF   /* SRAM start, end */
+.endif
 .endif
 
 !       .ascii  "            "          /* no SRAM */

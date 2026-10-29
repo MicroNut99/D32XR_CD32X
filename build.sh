@@ -129,6 +129,15 @@ if [ -n "${PLUTEX:-}" ]; then
   ED_TAG="${ED_TAG}_PLUTEX"
   [ -n "${CARTCD:-}" ] && export CARTCD_ED=1
 fi
+# EDX=1 (with CARTCD=1 PLUTEX=1; off by default): that cartridge for the Mega EverDrive X3 / X5 / X7 instead of
+# the PRO (krikzz's extended SSF notes for them, 22.09.2014: the same write bit; their battery SRAM is the upper
+# 256 KB of bank 31, the rest of banks 30-31 their OS's - the reverse of the PRO, so the PRO cartridge must not
+# run on them; CTRL0's X bit, 32X mode, set in every write) - CARTCD_EDX. The names get _X.
+if [ -n "${EDX:-}" ]; then
+  { [ -z "${CARTCD:-}" ] || [ -z "${PLUTEX:-}" ]; } && { echo "*** EDX=1 is for CARTCD=1 PLUTEX=1 - stopping"; exit 1; }
+  export CARTCD_EDX=1
+  ED_TAG="${ED_TAG}_X"
+fi
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.
