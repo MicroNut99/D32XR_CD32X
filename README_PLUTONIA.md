@@ -1,7 +1,6 @@
 # Plutonia on DOOM CD32X Fusion: what was done to restore it
 
-The Plutonia Experiment (Final Doom, 1996) is the fifth game in this disc's SELECT GAME menu. It is
-made at build time from **your own `plutonia.wad`** (`data/plutonia.wad`; no game data is in this
+The Plutonia Experiment (Final Doom, 1996). It is made at build time from **your own `plutonia.wad`** (`data/plutonia.wad`; no game data is in this
 repository) by `tools/make_game.py`, and it runs on DOOM CD32X Fusion's engine (D32XR) on the 32X.
 
 This file is about the restoration: what the 32X version of Plutonia was missing, what was done about
