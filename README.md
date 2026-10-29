@@ -139,11 +139,11 @@ skies"; the same versions with `PLUTEX=1` added and a new name):
 
 | Version | Runs on | Command after the `cd` | Makes |
 |---|---|---|---|
-| 1c. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 PAIN=1 PLUTEX=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V4 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V4/` |
-| 4c. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_NP_V5_PAIN_PLUTEX.32X` |
-| 4d. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_V5_PAIN_PLUTEX.32X` |
-| 5b. DOOM 32X+CD | **Mega EverDrive PRO only** (its SSF mode: the game writes its own memory) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 DISC_NAME=DOOM32XCD_V2 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V2/`: `DOOM32XCD_V2.32x` + `DOOM32XCD_V2.cue` / `.bin` |
-| 5c. DOOM 32X+CD for the X-series | **Mega EverDrive X3 / X5 / X7 only** (the same SSF write bit; not tested on them yet) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 EDX=1 DISC_NAME=DOOM32XCD_V2X ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V2X/`: `DOOM32XCD_V2X.32x` + `DOOM32XCD_V2X.cue` / `.bin` |
+| 1c. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 PAIN=1 PLUTEX=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V5 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V5/` |
+| 4c. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=6 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V6_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_NP_V6_PAIN_PLUTEX.32X` |
+| 4d. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=6 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V6_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_V6_PAIN_PLUTEX.32X` |
+| 5b. DOOM 32X+CD | **Mega EverDrive PRO only** (its SSF mode: the game writes its own memory) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 DISC_NAME=DOOM32XCD_V3 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V3/`: `DOOM32XCD_V3.32x` + `DOOM32XCD_V3.cue` / `.bin` |
+| 5c. DOOM 32X+CD for the X-series | **Mega EverDrive X3 / X5 / X7 only** (the same SSF write bit; not tested on them yet) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 EDX=1 DISC_NAME=DOOM32XCD_V3X ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V3X/`: `DOOM32XCD_V3X.32x` + `DOOM32XCD_V3X.cue` / `.bin` |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
 `DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
@@ -349,6 +349,7 @@ Fusion), part of it in stack space the game never reaches.
 | `CARTCD=1` | DOOM | the 32X+CD version (5): the game as a cartridge ROM for a flash cart's SD card + the disc it reads; names get `_32XCD`. Not with `CART`, `EDCD`, `CART4`, `BRAMSAVE` or `ROMMAPS` |
 | `PLUTEX=1` | DOOM | Plutonia's own walls, floors and skies, and MAP28 / MAP29 (section "Plutonia's own walls, floors and skies"). The names get `_PLUTEX`. With `CARTCD=1` the cartridge is for the Mega EverDrive PRO only. Not with `ROMMAPS` |
 | `EDX=1` | DOOM | with `CARTCD=1 PLUTEX=1` (5c): the cartridge for the Mega EverDrive X3 / X5 / X7 instead of the PRO - its save in the upper 256 KB of bank 31, CTRL0's X bit (32X mode) set. The names get `_X`. Never run 5b on an X-series cart or 5c on a PRO: each writes its save where the other cart's OS keeps its own data |
+| `PLUT_INTERPIC=<file>` | DOOM | Plutonia's intermission picture: your own picture file in place of the WAD's `INTERPIC` (a 320 x 200 picture fills the screen as the WAD's does). Without it, a `data/plutonia_interpic.png` (or `.jpg`) is used when there is one; neither: the WAD's own. Every version with Plutonia. The picture stays in `data/`, never in the repository |
 | `PAIN=1` | DOOM | the Pain Elemental (from D32XR, 23-25 Oct 2026; its data from your `data/doom2.wad`): section "The Pain Elemental". The disc and launcher names get `_PAIN`. Not with `ROMMAPS` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |

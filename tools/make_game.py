@@ -1199,7 +1199,13 @@ class Converter:
             pw, ph, px = patch_picture(pc.by[name]['data'], w, h)
             return jagpic(pw, ph, px)
         lumps.append(('TITLE', pic('TITLEPIC', 320, 220)))
-        lumps.append(('INTERPIC', pic('INTERPIC', 320, 224)))
+        if self.args.interpic:
+            # a picture of your own for the intermission screen (build.sh PLUT_INTERPIC, or
+            # data/plutonia_interpic.png / .jpg): the whole picture, a 320 x 200 DOOM screen stretched to
+            # 320 x 224 as the WAD's INTERPIC is; without it, the WAD's own, as before
+            lumps.append(('INTERPIC', jagpic(320, 224, self.image_picture(self.args.interpic, 320, 224, fit=None))))
+        else:
+            lumps.append(('INTERPIC', pic('INTERPIC', 320, 224)))
         pw, ph, px = patch_picture(pc.by['M_DOOM']['data'])
         lumps.append(('M_DOOM', jagpic(pw, ph, px)))
         for n in ('PERCENT', 'I_KILLS', 'I_ITEMS', 'I_SECRET', 'I_LEVEL', 'I_FINISH'):
@@ -1348,7 +1354,7 @@ def main():
     ap.add_argument('--tex-image', action='append', help='NAME[,NAME]=file[@x0,y0,x1,y1]: textures drawn '
                     'from (part of) a picture')
     ap.add_argument('--interpic', help='SIGIL: the intermission / level loading picture (a file, or lump:NAME '
-                    'for a picture in the PWAD)')
+                    'for a picture in the PWAD); Plutonia: a picture file in place of the WAD\'s INTERPIC')
     ap.add_argument('--music', choices=('spcm', 'cd'), default='spcm',
                     help='SIGIL: streamed PCM files on the data track (spcm) or the disc\'s CD audio tracks (cd)')
     ap.add_argument('--cdtrack', type=int, default=1, help='SIGIL --music cd: the cdTrack of its title song (11 tracks: title, E?M1-9, intermission)')

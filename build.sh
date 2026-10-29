@@ -177,12 +177,19 @@ else CUT="${CUT-MAPDEV.WAD VGM_DOOM VGM_DOOM_II VGM_PLUTONIA VGM_TNT}"; fi
 # textures and flats only DOOM's maps use make room for one more ROM map
 [ -n "$ROMMAPS" ] && [ -n "${SIGILONLY:-}" ] && CUT="$CUT DOOM.WAD VGM_DOOM"
 for f in $CUT; do rm -rf "$DISC/$f"; done
+# PLUT_INTERPIC=<picture file>, or a data/plutonia_interpic.png / .jpg: your own picture for Plutonia's
+# intermission screen in place of the WAD's INTERPIC (tools/make_game.py --interpic; a 320 x 200 picture
+# fills the screen as the WAD's does). Neither: the WAD's own, as before
+PIP="${PLUT_INTERPIC:-}"
+if [ -z "$PIP" ]; then for f in "$DATA/plutonia_interpic.png" "$DATA/plutonia_interpic.jpg"; do [ -f "$f" ] && { PIP="$f"; break; }; done; fi
+[ -n "$PIP" ] && [ ! -f "$PIP" ] && { echo "*** PLUT_INTERPIC: $PIP not found - stopping"; exit 1; }
 if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   echo "==> PLUTONIA.WAD (from data/plutonia.wad${HIRES:+}, budgets ${PLUT_BUDGETS:-tools/plutonia_budgets.txt})"
+  [ -n "$PIP" ] && echo "    intermission picture: $PIP"
   PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
   python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
           ${PK:+--hires "$PK"} ${PAIN:+--keep-pain} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
-          ${PLUTEX:+--cart-keep-out "$HERE/build/plutex_keep.txt"} \
+          ${PLUTEX:+--cart-keep-out "$HERE/build/plutex_keep.txt"} ${PIP:+--interpic "$PIP"} \
           --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
     || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD failed"; exit 1; }
   tail -1 "$HERE/build/plutonia_log.txt"
@@ -274,7 +281,7 @@ if [ -n "${PLUTEX:-}" ]; then
   echo "==> PLUTONIA.WAD with its pictures for the cart block (tools/make_game.py --cart-iwad)"
   python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
           ${PK:+--hires "$PK"} ${PAIN:+--keep-pain} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
-          --cart-iwad "$IWAD" --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
+          --cart-iwad "$IWAD" ${PIP:+--interpic "$PIP"} --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
     || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD (PLUTEX) failed"; exit 1; }
   tail -1 "$HERE/build/plutonia_log.txt"
   echo "    $(grep -oE '[0-9]+ substituted' "$HERE/build/plutonia_report.txt" | awk '{s+=$1} END {print s+0}') look-alikes left in all of Plutonia (build/plutonia_report.txt)"

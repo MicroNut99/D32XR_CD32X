@@ -87,7 +87,9 @@ engine's own form and are used in place; the rest fits the RAM.
 **Plutonia's own presentation:** its level names, its four story texts and the two secret-level texts,
 its title and intermission pictures, its secret exits (MAP15 to MAP31, MAP31 to MAP32), and the Fusion
 team's Mega Drive arrangement of the Plutonia MIDI pack as its FM music (or the CD audio option, with
-DOOM II's tracks for the same map numbers).
+DOOM II's tracks for the same map numbers). The intermission picture can be one of your own: put it
+in `data/plutonia_interpic.png` (320 x 200; README, `PLUT_INTERPIC`) and every version with Plutonia
+shows it between the maps; without it, the WAD's own.
 
 **Which versions:**
 
