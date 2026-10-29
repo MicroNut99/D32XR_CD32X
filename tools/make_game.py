@@ -218,13 +218,25 @@ class Base:
                 self.flat_anim_groups.append(grp)
                 fanim.update(grp)
         self.flat_donors = [f for f in self.flats if f not in fanim and f not in ('F_SKY1', 'F_STCOL2', 'FLAT5_7')]
+        # PLUTEX (--cart-iwad): the lumps in the IWAD's cart block (tools/make_cartblk.py) hold another
+        # game's pictures while this one runs, and lumps that share their bytes with another (a stub
+        # of tools/make_rommaps.py stub_unused) are not their own pictures: neither is a look-alike
+        self.cart_names, self.shared = set(), set()
+        blk = [l for l in L if l['name'] == 'CARTBLK']
+        if blk:
+            at, ln = struct.unpack('>II', blk[0]['data'][:8])
+            self.cart_block = (at, ln)
+            self.cart_names = set(l['name'] for l in L if l['size'] and at <= l['pos'] < at + ln)
+        from collections import Counter as _C
+        posc = _C(l['pos'] for l in L if l['size'])
+        self.shared = set(l['name'] for l in L if l['size'] and posc[l['pos']] > 1)
 
     def picture(self, name):
         """the base picture (w, h, column-major palette indices) for the look comparisons"""
         i = self.index[name]
         w, h = self.tex[i]['w'], self.tex[i]['h']
         l = self.tlumps.get(self.ids[i][1]) if self.ids[i][0] == 'T' else None
-        if l is None:
+        if l is None or self.ids[i][1] in self.cart_names:
             return None
         d = self.get(l)
         if len(d) >= 16 and struct.unpack('>HH', d[:4]) == (w, h) and struct.unpack('>H', d[4:6])[0] in (2, 3):
@@ -334,7 +346,23 @@ class Converter:
         self.pc = PCWad(args.pc)
         if self.game == 'plutonia' and (self.pc.type != 'IWAD' or 'MAP01' not in self.pc.by):
             die('%s is not a Doom II-format IWAD' % args.pc)
-        self.base = Base(args.base)
+        # PLUTEX (build.sh PLUTEX=1, --cart-iwad): the base game is the game's own IWAD with its cart
+        # block (tools/make_cartblk.py): the extras that fit go into the block, the rest into RAM
+        self.cart = None
+        self.cart_shrink = 0
+        self.last_overflow = 0
+        self.staged = {}                  # PLUTEX: map -> its read-only lumps in the engine's form (the block)
+        self.cur_staged = None
+        if getattr(args, 'cart_iwad', None):
+            self.base = Base(args.cart_iwad)
+            if not hasattr(self.base, 'cart_block'):
+                die('%s has no cart block (tools/make_cartblk.py)' % args.cart_iwad)
+            at, ln = self.base.cart_block
+            self.cart = {'at': at, 'len': ln, 'pool': open(args.cart_iwad + '.pool', 'rb').read()}
+            if len(self.cart['pool']) != ln:
+                die('%s.pool is not the block (%d bytes, the block %d)' % (args.cart_iwad, len(self.cart['pool']), ln))
+        else:
+            self.base = Base(args.base)
         self.pal = Palette(self.pc.pal)
         # --tex-image NAME[,NAME]=file[@x0,y0,x1,y1]: those textures' pictures from part of an image
         # (fractions of its width / height; default the whole image), in the PWAD's palette - e.g.
@@ -515,18 +543,24 @@ class Converter:
             units.append(('single', [t], tex_w[t]))
         units.sort(key=lambda u: -u[2])
 
-        free = [d for d in B.donors if d not in used_base]
+        patch_of_used = set(B.tex[p]['name'] for t in used_base for p in B.tex[B.index[t]]['patches'] if 0 <= p < len(B.tex))
+        free = [d for d in B.donors if d not in used_base and (not self.cart or d not in patch_of_used)]
         free_sw = [p for p in B.switch_pairs if p[0] not in used_base and p[1] not in used_base]
         free_anim = [g for g in B.anim_groups if not any(x in used_base for x in g)]
         taken = set()
 
+        # PLUTEX: the engine takes a picture's own size from its header (d32xr/p_setup.c), so a donor
+        # of another size does too - a donor of the same size first all the same
+        anysize = bool(self.cart)
+
         def take_single(t):
             w, h, _, _ = self.pc.tex[t]
-            for d in free:
-                i = B.index[d]
-                if d not in taken and (B.tex[i]['w'], B.tex[i]['h']) == (w, h):
-                    taken.add(d)
-                    return d
+            for same in ((True, False) if anysize else (True,)):
+                for d in free:
+                    i = B.index[d]
+                    if d not in taken and ((B.tex[i]['w'], B.tex[i]['h']) == (w, h) or not same):
+                        taken.add(d)
+                        return d
             return None
 
         # ---- flats ----------------------------------------------------------------------------
@@ -558,8 +592,18 @@ class Converter:
         ftaken = set()
 
         # ---- the RAM budget: what is seen most per byte first ----------------------------------------
-        budget = self.map_budget(lumps)
-        slots = MAX_AUX - 4 - (1 if sky else 0)
+        ram_budget = self.map_budget(lumps)
+        reserve = 0
+        if self.cur_staged:
+            # its read-only lumps take the start of the block; the RAM: the level model without them
+            reserve = sum((len(d_) + 15) & ~15 for d_ in self.cur_staged.values())
+            saved = sum(len(d_) for d_ in self.cur_staged.values()) / 1024.0
+            ram_budget = int(max(0, 149.4 - (self.level_size(lumps) - saved) - 3) * 1024)
+        budget = ram_budget
+        if self.cart:
+            # the block too (less 16 bytes of alignment per lump and the room the RAM could not take)
+            budget += max(0, self.cart['len'] - reserve - MAX_AUX * 16 - self.cart_shrink)
+        slots = MAX_AUX - 4 - (1 if sky else 0) - (1 if self.cart else 0)
         spent = 0
         plan = []                                    # [kind, PC name, donor, depth]
         sky_depth = 0
@@ -571,7 +615,8 @@ class Converter:
 
         def flat_fallback(frames, why):
             for f in frames:
-                c = self.closest('flat', f, [x for x in B.flats if x not in ftaken and x != 'F_SKY1'])
+                c = self.closest('flat', f, [x for x in B.flats if x not in ftaken and x != 'F_SKY1' and
+                                             (not self.cart or x not in B.cart_names and x not in B.shared)])
                 rename_f[f] = c
                 log.append('flat %s -> looks like %s (%s)' % (f, c, why))
 
@@ -632,10 +677,12 @@ class Converter:
             donors = None
             if kind == 'anim':
                 donors = next((g for g in free_anim if len(g) == len(frames) and not set(g) & taken and
-                               all((B.tex[B.index[x]]['w'], B.tex[B.index[x]]['h']) == (w, h) for x in g)), None)
+                               all((B.tex[B.index[x]]['w'], B.tex[B.index[x]]['h']) == (w, h) for x in g)), None) or \
+                    (next((g for g in free_anim if len(g) == len(frames) and not set(g) & taken), None) if anysize else None)
             elif kind == 'switch':
                 p = next((p for p in free_sw if not set(p) & taken and
-                          all((B.tex[B.index[x]]['w'], B.tex[B.index[x]]['h']) == self.pc.tex[f][:2] for x, f in zip(p, frames))), None)
+                          all((B.tex[B.index[x]]['w'], B.tex[B.index[x]]['h']) == self.pc.tex[f][:2] for x, f in zip(p, frames))), None) or \
+                    (next((p for p in free_sw if not set(p) & taken), None) if anysize else None)
                 donors = list(p) if p else None
             if donors and spent + cost <= budget and len(plan) + len(frames) <= slots:
                 taken.update(donors)
@@ -670,6 +717,20 @@ class Converter:
             else:
                 place_tex(kind, frames, wgt)
 
+        # PLUTEX: the game's own sky before the 8-bit pictures (below: last)
+        def place_sky():
+            nonlocal spent, sky, sky_depth
+            if sky and spent + 32784 <= budget:
+                sky_depth = 3
+                spent += 32784
+            elif sky and spent + 16432 <= budget:
+                sky_depth = 2
+                spent += 16432
+            elif sky:
+                sky = None
+                log.append('sky: the base game\'s (no room)')
+        if self.cart:
+            place_sky()
         # 8-bit for the most used of the placed ones
         for wgt, k in sorted(pending, key=lambda x: -x[0]):
             t = plan[k][1]
@@ -690,15 +751,8 @@ class Converter:
                 plan.append(['tex', t, t, 3])
                 spent += c
         # the game's own sky last: 8-bit, else 4-bit, else the base game's sky
-        if sky and spent + 32784 <= budget:
-            sky_depth = 3
-            spent += 32784
-        elif sky and spent + 16432 <= budget:
-            sky_depth = 2
-            spent += 16432
-        elif sky:
-            sky = None
-            log.append('sky: the base game\'s (no room)')
+        if not self.cart:
+            place_sky()
 
         # ---- rewrite the map ---------------------------------------------------------------------
         def put(b, o, name):
@@ -745,13 +799,54 @@ class Converter:
             for _, f, d, _ in flats:
                 extra.append((d, self.flat_picture(f)[0]))
             extra.append(('F_END', b''))
+        ncart = 0
+        if self.cart:
+            # the block: the map's own read-only lumps (a level too big for the RAM, stage_level) first, then
+            # the largest extras, each at a multiple of 16. CARTDATA is the block's picture for this map (one
+            # lump: one read from the CD); CARTMAP (big-endian: 'CMAP', count, then per piece its name[8],
+            # kind (1 texture, 2 flat, 3 sky, 4 a map lump: ML_xxx), its offset in the block and its size)
+            # tells the engine what it is (d32xr/p_setup.c). The rest of the extras go to RAM as before.
+            kind, sec = {}, 3
+            for k, (n_, d_) in enumerate(extra):
+                if n_ in ('T_START', 'F_START'):
+                    sec = 1 if n_ == 'T_START' else 2
+                elif n_ in ('T_END', 'F_END'):
+                    sec = 0
+                elif d_:
+                    kind[k] = sec
+            image = bytearray()
+            entries = []
+            if self.cur_staged:
+                for n_ in MAPLUMPS:
+                    if n_ in self.cur_staged:
+                        d_ = self.cur_staged[n_]
+                        entries.append((n_, 4, 1 + MAPLUMPS.index(n_), len(image), len(d_)))   # ML_xxx = 1 + its place
+                        image += d_ + bytes(-len(d_) % 16)
+            dest = set()
+            for k in sorted(kind, key=lambda k: -len(extra[k][1])):
+                d_ = extra[k][1]
+                if kind[k] and len(image) + ((len(d_) + 15) & ~15) <= self.cart['len']:
+                    entries.append((extra[k][0], kind[k], 0, len(image), len(d_)))
+                    image += d_ + bytes(-len(d_) % 16)
+                    dest.add(k)
+            ram = sum(len(extra[k][1]) for k in kind if k not in dest)
+            self.last_overflow = ram - ram_budget
+            if entries:
+                cm = b'CMAP' + struct.pack('>I', len(entries))
+                for n_, kd, ml, o_, sz in entries:
+                    cm += n_.encode('latin1')[:8].ljust(8, b'\0') + struct.pack('>HHII', kd, ml, o_, sz)
+                extra = [('CARTMAP', cm), ('CARTDATA', bytes(image))] + [e for k, e in enumerate(extra) if k not in dest]
+            ncart = len(dest)
+            spent = ram + len(image) - reserve
+            budget = ram_budget + self.cart['len'] - reserve
         n4 = sum(1 for p in texs if p[3] == 2)
         nhi = sum(1 for p in texs if self.pack and self.pack.has(p[1]))
         self.report.append('%s %-22s budget %3d KB, used %3d KB: %2d textures (%d 4-bit, %d from the 1K pack), '
-                           '%d flats, sky %s; %d substituted'
+                           '%d flats, sky %s; %d substituted%s'
                            % (mapname, '"%s"' % self.map_names.get(mapname, ''), budget // 1024, spent // 1024, len(texs),
                               n4, nhi, len(flats), {0: '-', 2: '4-bit', 3: '8-bit'}[sky_depth],
-                              sum(1 for x in log if 'looks like' in x or 'see-through' in x)))
+                              sum(1 for x in log if 'looks like' in x or 'see-through' in x),
+                              '; %d in the cart block' % ncart if self.cart else ''))
         for x in log:
             self.report.append('      ' + x)
         return [(mapname, b'')] + [(n, bytes(M[n])) for n in MAPLUMPS] + extra
@@ -875,11 +970,85 @@ class Converter:
              c['NODES'] / 28, ns, (ns + 1) * ns / 16, c['BLOCKMAP'], c['THINGS'] / 10]
         return sum(a * b for a, b in zip(LEVEL_MODEL, f)) / 1024
 
+    def stage_level(self, m, kb):
+        """PLUTEX: a level too big for the RAM with its vertexes, segs, nodes, reject and blockmap in the
+        cart block (the engine's form, used in place: d32xr/p_setup.c P_CartLevel) - when the rest fits
+        the RAM and the block holds them with room to spare for pictures"""
+        import make_rommaps as rm
+        ml = self.map_lumps(m)
+        forms = rm.rom_map(ml, {})
+        st = {n_: forms[n_] for n_ in ('VERTEXES', 'SEGS', 'NODES', 'REJECT', 'BLOCKMAP')}
+        size = sum(len(d_) for d_ in st.values())
+        if kb - size / 1024.0 > self.args.maxlevel or size > self.cart['len'] // 2:
+            return False
+        self.staged[m] = st
+        self.report.append('%s %-22s level %3.0f KB: its vertexes, segs, nodes, reject and blockmap (%d KB) in the cart block, '
+                           '%3.0f KB in RAM' % (m, '"%s"' % NAMES[int(m[3:]) - 1], kb, size // 1024, kb - size / 1024.0))
+        return True
+
+    def cart_keep(self, maps, path, extra_flats=()):
+        """PLUTEX: the base game's texture and flat lumps these maps need as they are (by their own
+        name and size), with their switch partners and animation frames, the stand-ins and the flats
+        the engine and DMAPINFO name - tools/make_cartblk.py moves all the others into the block"""
+        B = self.base
+        lumps = set()
+        tex = set(['ASHWALL2'] + [B.tex[i]['name'] for i in range(min(2, len(B.tex)))])
+        flats = set(['F_SKY1', 'F_STCOL2', 'ROCKS', 'FLAT5_7'] + list(extra_flats))
+        nm = lambda b: b.split(b'\0')[0].decode('latin1').upper()
+        for m in maps:
+            ml = self.map_lumps(m)
+            sd = ml['SIDEDEFS']
+            for k in range(0, len(sd), 30):
+                for o in (4, 12, 20):
+                    t = nm(sd[k + o:k + o + 8])
+                    i = B.index.get(t)
+                    if i is None:
+                        continue
+                    if t in self.pc.tex and self.pc.tex[t][:2] != (B.tex[i]['w'], B.tex[i]['h']):
+                        continue
+                    tex.add(t)
+            se = ml['SECTORS']
+            for k in range(0, len(se), 26):
+                for o in (4, 12):
+                    f = nm(se[k + o:k + o + 8])
+                    if f in B.flatset:
+                        flats.add(f)
+        for a_, b_ in ENGINE_SWITCHES:
+            if a_ in tex or b_ in tex:
+                tex |= {x for x in (a_, b_) if x in B.index}
+        for g in B.anim_groups:
+            if set(g) & tex:
+                tex |= set(g)
+        for g in B.flat_anim_groups:
+            if set(g) & flats:
+                flats |= set(g)
+        # decal textures (no lump of their own) draw their first patch's lump
+        for t in tex:
+            i = B.index[t]
+            if B.ids[i][0] == 'T':
+                lumps.add(B.ids[i][1])
+            for p in B.tex[i]['patches']:
+                if 0 <= p < len(B.tex):
+                    lumps.add(B.tex[p]['name'])
+        lumps |= flats
+        open(path, 'w').write('# tools/make_game.py --cart-keep-out: the base lumps %s needs as they are\n'
+                              % self.game + '\n'.join(sorted(lumps)) + '\n')
+        return lumps
+
     def build(self, out):
         if self.game == 'plutonia':
             lumps = self.build_plutonia()
         else:
             lumps = self.build_sigil()
+        if self.cart:
+            # the block's own bytes: any other game puts them back from here (d32xr/p_setup.c)
+            lumps.append(('CARTPOOL', self.cart['pool']))
+        if getattr(self.args, 'cart_keep_out', None):
+            maps = ['MAP%02d' % n for n in range(1, 33)] if self.game == 'plutonia' else \
+                   [l['name'] for l in self.pc.L if re.match(r'E[56]M\d$', l['name'])]
+            flats = re.findall(r'(?:intermissionFlat|endFlat|borderFlat)\s*=\s*"(\w+)"',
+                               next((d for n_, d in lumps if n_ == 'DMAPINFO'), b'').decode('latin1'), re.I)
+            self.cart_keep(maps, self.args.cart_keep_out, [f.upper() for f in flats])
         write_pwad(out, lumps)
         if self.args.rom_maps:
             write_pwad(self.args.rom_maps, self.rom_lumps)
@@ -919,9 +1088,23 @@ class Converter:
         for m, sky in maps:
             ml = self.map_lumps(m)
             self.cur_map = m
-            if m not in self.rom_maps and self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416:
+            if m not in self.rom_maps and self.budgets is not None and self.budgets.get(m, 0) < 16 * 1024 + 16416 \
+                    and not self.cart:
                 sky = None                        # no room even for the 4-bit sky: the base game's sky
-            lumps = self.convert_map(m, ml, sky)
+            self.cart_shrink = 0
+            self.cur_staged = self.staged.get(m)
+            for _ in range(12):
+                nrep = len(self.report)
+                lumps = self.convert_map(m, ml, sky)
+                if not self.cart or self.last_overflow <= 0:
+                    break
+                # the RAM would get more than its budget (the block could not take a big one): less room
+                del self.report[nrep:]
+                self.cart_shrink += self.last_overflow + 1024
+            if self.cur_staged:
+                # the read-only lumps in the engine's form (they go to the block: CARTMAP)
+                lumps = [(n_, self.cur_staged.get(n_, d_)) for n_, d_ in lumps]
+            self.cur_staged = None
             if m in self.rom_maps:
                 self.rom_lumps += lumps           # --rom-maps: into the ROM (tools/make_rommaps.py)
             else:
@@ -954,6 +1137,8 @@ class Converter:
             m = 'MAP%02d' % n
             kb = self.level_size(self.map_lumps(m))
             if kb <= self.args.maxlevel:
+                fits.append(m)
+            elif self.cart and self.stage_level(m, kb):
                 fits.append(m)
             else:
                 self.report.append('%s %-22s level %3.0f KB: TOO BIG for the 32X (limit %d KB) - left out'
@@ -1180,6 +1365,8 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--report')
     ap.add_argument('--keep-pain', action='store_true', help='PAIN=1: Pain Elementals stay (the engine has them)')
+    ap.add_argument('--cart-keep-out', help='PLUTEX: write the base lumps the game needs as they are (tools/make_cartblk.py --keep)')
+    ap.add_argument('--cart-iwad', help='PLUTEX: the game\'s IWAD with its cart block (tools/make_cartblk.py): the extras go there')
     a = ap.parse_args()
     c = Converter(a)
     c.build(a.out)

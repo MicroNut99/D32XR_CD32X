@@ -30,7 +30,13 @@
 .ifdef ENABLE_SSF_MAPPER
         .ascii  "SEGA SSF        "
 .else
+.ifdef CARTCD_ED
+! CARTCD_ED (build.sh CARTCD=1 PLUTEX=1): the Mega EverDrive PRO's SSF mode - its write bit (PLUTEX) and
+! its save bank (src-md/crt0.s); the 4 MB stay one plain 4 MB (the end below), no D32XR bank switching
+        .ascii  "SEGA SSF        "
+.else
         .ascii  "SEGA 32X        "
+.endif
 .endif
         .ascii  "                "
         .ascii  "DOOM 32XCD Fusio"
@@ -53,7 +59,11 @@
         .ascii  "RA"                    /* External RAM */
         .byte   0xF8                    /* don't clear + odd bytes */
         .byte   0x20                    /* SRAM */
+.ifdef CARTCD_ED
+        .long   0x00200001,0x0023FFFF   /* the PRO keeps its save bank (as the EDCD launchers declare it) */
+.else
         .long   0x00200001,0x00207FFF   /* SRAM start, end */
+.endif
 
 !       .ascii  "            "          /* no SRAM */
 

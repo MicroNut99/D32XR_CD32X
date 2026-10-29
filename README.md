@@ -83,7 +83,7 @@ Also:
 - **SIGIL E5M6, E5M7 and SIGIL II E6M1, E6M5, E6M6, E6M7** are not on the SIGIL disc: E5M6, E5M7,
   E6M5, E6M6 and E6M7 don't fit the 32X's RAM even as ROM maps; E6M1 fits but plays too badly (see
   "Why six SIGIL levels are left out"). Their CD audio tracks are on the disc (1 s of silence), so the numbering stays.
-- **PLUTONIA MAP28 and MAP29:** the same reason (`Z_Malloc failed` in ares). The map before goes on to the next one that fits.
+- **PLUTONIA MAP28 and MAP29:** the same reason (`Z_Malloc failed` in ares). The map before goes on to the next one that fits. With `PLUTEX=1` they are in (section "Plutonia's own walls, floors and skies").
 - **Textures:** a map's own textures share the memory left after its level data. What doesn't fit is drawn as the base game's closest-looking texture of the same size (the build report lists every one). The SIGIL maps are so big that almost all their own textures are stand-ins (lava falls and red rock show as wood and step textures). Skies: the map's own sky only when it fits, else the base game's (SIGIL: the red hell sky).
 - **SIGIL's "real" soundtracks** (Buckethead for SIGIL, Thorr for SIGIL II) are not on the discs: the only SIGIL music supplied was the OPL soundtrack video, so its CD tracks and streamed songs sound like FM synth music. SIGIL II's songs are its MIDIs played through an OPL3 emulator with DOOM's instruments, the same kind of sound. Give the build other WAVs (`data/sigil_cdda/Track02-23.wav`) to change that.
 - **No skill / level choice when PLUTONIA, SIGIL or SIGIL II start:** like Fusion's WADs without attract demos, the title goes straight into the first map on medium. Pick the skill and the level with Start, Game, New Game.
@@ -133,6 +133,16 @@ into the cart again.
 | 4. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_NP_V4_PAIN.32X` (the Pain Elemental) |
 | 4b. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=4 PAIN=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V4_PAIN/` + `cd32x/subcpu/EDCD_DOOM_V4_PAIN.32X` (the Pain Elemental; SOUNDS, DOOM, DOOM II, RESURRECTION copied into the EverDrive's memory) |
 | 5. DOOM 32X+CD (cartridge + disc) | a flash cart with the 32X game (Mega EverDrive X3 / X5 / X7 / PRO) + the disc in the Sega CD | `CARTCD=1 PAIN=1 DISC_NAME=DOOM32XCD_V1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V1/`: `DOOM32XCD_V1.32x` (the cartridge ROM, for the SD card) + `DOOM32XCD_V1.cue` / `.bin` |
+
+**With Plutonia's own walls, floors and skies** (`PLUTEX=1`, section "Plutonia's own walls, floors and
+skies"; the same versions with `PLUTEX=1` added and a new name):
+
+| Version | Runs on | Command after the `cd` | Makes |
+|---|---|---|---|
+| 1c. DOOM disc, 4 MB | 4 / 8 / 16 MB RAM cart (disc boot) | `CART4=1 BRAMSAVE=1 PAIN=1 PLUTEX=1 DISC_NAME=D32XR_CD32X_IDKFA_4MB_V4 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_IDKFA_4MB_V4/` |
+| 4c. DOOM for the EverDrive | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 NOPRELOAD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_NP_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_NP_V5_PAIN_PLUTEX.32X` |
+| 4d. DOOM for the EverDrive, 16 MB (preload) | Mega EverDrive PRO (cartridge boot) | `CART=ED EDCD=1 LOADER_CHECK=1 EDCD_VER=5 PAIN=1 PLUTEX=1 ./build.sh 2>&1 \| tee build_log.txt` | `discs/D32XR_CD32X_R2_EDCD_DOOM_V5_PAIN_PLUTEX/` + `cd32x/subcpu/EDCD_DOOM_V5_PAIN_PLUTEX.32X` |
+| 5b. DOOM 32X+CD | **Mega EverDrive PRO only** (its SSF mode: the game writes its own memory) + the disc in the Sega CD | `CARTCD=1 PAIN=1 PLUTEX=1 DISC_NAME=DOOM32XCD_V2 ./build.sh 2>&1 \| tee build_log.txt` | `discs/DOOM32XCD_V2/`: `DOOM32XCD_V2.32x` + `DOOM32XCD_V2.cue` / `.bin` |
 
 For a new build of the same version, give it a new name so it never overwrites the last one: a new
 `DISC_NAME` (e.g. `D32XR_CD32X_IDKFA_4MB_V4`), or for the EverDrive the next `EDCD_VER` (5, 6, ...).
@@ -336,6 +346,7 @@ Fusion), part of it in stack space the game never reaches.
 | `CART4=1` | DOOM | the 4 MB cart build (1b): 13 walls in 4-bit, the game ends below the save area |
 | `BRAMSAVE=1` | both | the save as the file `D32XR_DOOM_` (32 blocks) in the Sega CD's backup RAM instead of the cart's save area; the first boot moves a cart save over (1b). The default disc name gets `_BRAM`. Not with `CART=ED` |
 | `CARTCD=1` | DOOM | the 32X+CD version (5): the game as a cartridge ROM for a flash cart's SD card + the disc it reads; names get `_32XCD`. Not with `CART`, `EDCD`, `CART4`, `BRAMSAVE` or `ROMMAPS` |
+| `PLUTEX=1` | DOOM | Plutonia's own walls, floors and skies, and MAP28 / MAP29 (section "Plutonia's own walls, floors and skies"). The names get `_PLUTEX`. With `CARTCD=1` the cartridge is for the Mega EverDrive PRO only. Not with `ROMMAPS` |
 | `PAIN=1` | DOOM | the Pain Elemental (from D32XR, 23-25 Oct 2026; its data from your `data/doom2.wad`): section "The Pain Elemental". The disc and launcher names get `_PAIN`. Not with `ROMMAPS` |
 | `WITHSIGIL=1` | DOOM | SIGIL and SIGIL II on the DOOM disc too (the maps that fit the RAM from the CD; songs streamed) |
 | `MUSIC=sigil` | SIGIL | CD audio = SIGIL's and SIGIL II's songs (`data/sigil_albums`, else `data/sigil_cdda`); default `MUSIC=idkfa` = the IDKFA soundtrack |
@@ -364,7 +375,9 @@ Fusion), part of it in stack space the game never reaches.
 **Emulator test options** (never for a disc you play): `TEST_GOD=1` the player takes no damage;
 `TEST_STATS=1` the renderer's counters (walls, floor / ceiling areas, stack depth) for an ares RAM
 dump; `TEST_WALLS=n`, `TEST_PLANES=n` other limits; `TEST_EXIT=1` every level ends by itself after
-about 300 frames (to see the intermission and the next loading screen); `TEST_DEBUG=1` D32XR's
+about 300 frames (to see the intermission and the next loading screen); `TEST_WARP=n` a game the title
+starts by itself (Plutonia, the SIGILs) starts at MAPn (with `TEST_EXIT=1`: a run through the maps from
+there); `TEST_SPECIAL=1` the "unknown special" stop shows the number and the sector; `TEST_DEBUG=1` D32XR's
 timing screen on from the start (in a disc you play: Options + MODE; its times read 0 in ares).
 
 **The build's tools** (`tools/`):
@@ -489,6 +502,57 @@ wherever DOOM II has a Pain Elemental. `PAIN=1` puts all of it in, and it needs 
   Pain Elemental in front of the start: it shows, floats over, spits Lost Souls (frames 1b half / 4
   full width), the sounds play; with a test build of 1b (health 10) it bursts into its death frames and
   three Lost Souls. The builds without `PAIN=1` are byte for byte the same as before (game builds
+  compared).
+
+## Plutonia's own walls, floors and skies (`PLUTEX=1`)
+
+Plutonia brings about 250 textures and flats of its own, and the 32X keeps a map's own pictures in the
+RAM its level data leaves free: 18-109 KB a map. Without `PLUTEX=1` 696 of Plutonia's walls and
+floors are drawn as the base game's closest-looking texture, every map has DOOM II's sky, and MAP28 and
+MAP29 are left out (their level data alone is bigger than the RAM). The arch-viles, Pain Elementals
+(`PAIN=1`) and Cyberdemons are all there either way (MAP11 "Hunted": all 23 arch-viles; MAP32 "Go 2 It":
+all of its monsters).
+
+`PLUTEX=1` uses what these carts have and a cartridge doesn't: the game's 4 MB are RAM (the RAM cart, the
+EverDrive's PSRAM), so the game can write its own image while it runs.
+
+- **The block** (`tools/make_cartblk.py`): the base game's textures and flats that Plutonia never uses
+  itself (80 lumps, about 265 KB on the 4 MB cart, 276 KB on the others) are moved together to the end of
+  the IWAD. The directory keeps its order; `CARTBLK` says where the block is, `CARTREC` is its record.
+- **Each Plutonia map** (`tools/make_game.py --cart-iwad`): its pictures go into the block first (8-bit
+  where there is room), the rest into its RAM as before. `CARTDATA` is the block's picture for that map
+  (one read from the CD), `CARTMAP` says what is where. The 68000 writes it into the cart when the map
+  loads (`src-md/crt0.s` command 16, `cart_write`: both SH2s waiting in SDRAM, RV = 1; the EverDrive's
+  write bit on for the copy only), and the 32X draws from there as from the base game's own pictures
+  (`d32xr/p_setup.c`). A picture takes its own size from its header, so a donor name of another size
+  carries it for that map (the base game has 148 texture names: the donors ran out before the RAM did).
+- **MAP28 and MAP29:** their vertexes, segs, nodes, reject and blockmap (96 KB) go into the block in the
+  engine's own form, used in place as a ROM map's (`P_CartLevel`); the rest of the level fits the RAM
+  (119 and 87 KB).
+- **The other games:** when you quit back to SELECT GAME the block is put back from PLUTONIA.WAD
+  (`CARTPOOL`, its own bytes; about 2 s). `CARTREC` says `PLTX` while the block holds Plutonia's
+  pictures, so any other game's first map puts it back too (the 32X+CD cartridge keeps its memory over a
+  reset). The RAM cart's loader sees a changed cart as a new one: after switching off in the middle of
+  Plutonia, the next start copies the game again (about a minute, as the first time).
+- **What is left:** 81 look-alikes in all of Plutonia (EverDrive and 32X+CD; 95 on the 4 MB cart, whose
+  base walls are more 4-bit) instead of 696: most maps 0-3, MAP13 15, MAP28 18, MAP30 9, MAP22 8.
+  Nine maps keep DOOM II's sky (MAP10, 13, 20, 22, 25, 26, 28, 29, 30: no room left). 53 animations or
+  switches have one picture (the base game has no free animation or switch of that length), and 28
+  see-through railings and vines are drawn with a base see-through texture (the engine draws see-through
+  middles from sprite-shaped textures only). `build/plutonia_report.txt` lists every one.
+- **32X+CD (`CARTCD=1 PLUTEX=1`):** a cartridge ROM can't be written, so this cartridge is for the
+  **Mega EverDrive PRO** in its SSF mode (header `SEGA SSF`, `CARTCD_ED`): its write bit for the block,
+  and the save in its save bank (bank 31, at piece 11's place as the EDCD discs; the header declares save
+  RAM so the EverDrive keeps it on the SD card). The cartridge also reads up to 64 extra lumps per map
+  (`CD32X_AUX64`), as the CD32X builds do: with the cartridge build's 32 a test build lost MAP01's slime.
+- **Room:** the RAM cart builds still end below the 4 MB cart's save area (1c: 8.9 KB to spare). The
+  PLUTONIA.WAD directory stays within the 68000's 16 KB cache of it (910 lumps): a first version with one
+  lump per picture had 1698 and lost the intermission's pictures.
+- **MAP11 "Hunted"** has two sectors with special 11 (as at the end of DOOM's E1M8: god mode off,
+  damage, the level ends at 10% health). D32XR doesn't have it, so walking into them stopped the game
+  with "unknown special". `PLUTEX=1` adds it (`d32xr/p_spec.c`); the builds without it still stop there.
+- **Tested** in ares, 28 Oct 2026: README_PLUTONIA.md (section "Tested") says what was played and how.
+- The builds without `PLUTEX=1` are byte for byte the same as before (game programs and PLUTONIA.WAD
   compared).
 
 ## The cart
@@ -648,6 +712,8 @@ the Sega CD by itself. The CD-boot disc is unchanged, byte for byte.
 | `d32xr/marsroq.c` | The FMV sound at half volume (-6 dB) around the PWM centre. |
 | `d32xr/p_setup.c` | `MAX_AUX_TEXTURES` 64 (from 32): more of a map's own textures. |
 | `d32xr/info.c`, `info.h`, `p_enemy.c`, `sounds.c`, `sounds.h`, `f_main.c` | `CD32X_PAIN` (`PAIN=1`): the Pain Elemental, D32XR's own code (section "The Pain Elemental"). |
+| `d32xr/p_setup.c`, `w_wad.c`, `marshw.*`, `d_main.c`, `doomdef.h`, `src-md/crt0.s`, `p_spec.c` | `CD32X_PLUTEX` (`PLUTEX=1`): a Plutonia map's pictures and a big map's read-only lumps written into the IWAD's cart block (`CARTMAP`, `CARTDATA`, the 68000's command 16 `cart_write`), a picture's own size for its donor name, the block put back for the other games (`P_CartLeave` at SELECT GAME, `CARTREC`); a map's own 8-bit sky drawn as 8-bit after a 4-bit one; sector special 11 (Plutonia MAP11) (section "Plutonia's own walls, floors and skies"). |
+| `d32xr/crt0.s`, `src-md/crt0.s`, `p_setup.c` | `CARTCD_ED` and `CD32X_AUX64` (`CARTCD=1 PLUTEX=1`): the 32X+CD cartridge as a Mega EverDrive PRO SSF ROM (`SEGA SSF`, the save in its save bank), 64 extra lumps per map. |
 | `d32xr/doomdef.h`, `mars.h`, `marsnew.c`, `p_tick.c`, `r_phase2.c`, `r_phase6.c`, `r_phase7.c`, `r_phase8.c` | `CD32X_PAUSE`: pauses in the SH2 wait loops (both discs, `CD32X_IDLE`; README "Frame rate"). `r_data.c`: shorter sprite-setup error texts (room for them on the DOOM disc). |
 
 ## The boot stack

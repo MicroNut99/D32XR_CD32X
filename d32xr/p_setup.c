@@ -4,10 +4,13 @@
 #include "p_local.h"
 #include "mars.h"
 
-#ifdef CD32X
+#if defined(CD32X) || defined(CD32X_AUX64)
 /* CD32X: up to 64 extra lumps after a map's BLOCKMAP (sky, textures, flats): the converted
    PLUTONIA.WAD carries more of its own textures per map (tools/make_plutonia.py). The lump list
-   ends at the first lump that is not one (the next map's marker), as before. */
+   ends at the first lump that is not one (the next map's marker), as before.
+   CD32X_AUX64 (build.sh CARTCD=1 PLUTEX=1): the 32X+CD cartridge with PLUTEX's PLUTONIA.WAD, which
+   may have more than 32 (a test build stopped at the 32nd: MAP01's slime came out as DOOM's blue water;
+   the plain PLUTONIA.WAD has 21 at most) */
 #define MAX_AUX_TEXTURES 64
 #else
 #define MAX_AUX_TEXTURES 32
@@ -69,6 +72,16 @@ static boolean P_RomMap(int lump)
 #endif
 #endif
 
+#ifdef CD32X_PLUTEX
+/* PLUTEX (below, P_SetupLevel): a map too big for the RAM keeps its read-only lumps (vertexes, segs,
+   nodes, reject, blockmap in the engine's own form, as a ROM map's: tools/make_rommaps.py) in the
+   cart block, written there when it loads and used in place */
+static uint8_t *plutex_lvl[ML_BLOCKMAP + 1];
+static int plutex_lvlbase = -1;
+#define P_CartLevel(lump) (plutex_lvlbase >= 0 && (lump) >= plutex_lvlbase && (lump) - plutex_lvlbase <= ML_BLOCKMAP \
+	? plutex_lvl[(lump) - plutex_lvlbase] : NULL)
+#endif
+
 mapthing_t	*deathmatchstarts, *deathmatch_p;
 
 VINT		*validcount;			/* increment every time a check is made */
@@ -96,6 +109,11 @@ void P_LoadVertexes (int lump)
 	mapvertex_t	*li;
 	
 	numvertexes = W_LumpLength (lump) / sizeof(mapvertex_t);
+#ifdef CD32X_PLUTEX
+	if (P_CartLevel(lump))
+		vertexes = (void *)P_CartLevel(lump);	/* in the cart block: big-endian, used in place */
+	else
+#endif
 #ifdef CD32X
 	if (P_RomMap(lump))
 		vertexes = W_POINTLUMPNUM(lump);	/* ROM map: big-endian, used in place */
@@ -168,6 +186,14 @@ void P_LoadSegs (int lump)
 	return;
 #endif
 
+#ifdef CD32X_PLUTEX
+	if (P_CartLevel(lump))
+	{
+		numsegs = W_LumpLength (lump) / sizeof(seg_t);
+		segs = (void *)P_CartLevel(lump);
+		return;
+	}
+#endif
 #ifdef CD32X
 	if (P_RomMap(lump))
 	{
@@ -460,6 +486,14 @@ void P_LoadNodes (int lump)
 	return;
 #endif
 
+#ifdef CD32X_PLUTEX
+	if (P_CartLevel(lump))
+	{
+		numnodes = W_LumpLength (lump) / sizeof(node_t);
+		nodes = (void *)P_CartLevel(lump);
+		return;
+	}
+#endif
 #ifdef CD32X
 	if (P_RomMap(lump))
 	{
@@ -763,6 +797,13 @@ void P_LoadRejectMatrix (int lump)
 	int outsize;
 	unsigned outbit, outbyte;
 
+#ifdef CD32X_PLUTEX
+	if (P_CartLevel(lump))
+	{
+		rejectmatrix = P_CartLevel(lump);	/* packed already */
+		return;
+	}
+#endif
 #ifdef CD32X
 	if (P_RomMap(lump))
 	{
@@ -821,6 +862,11 @@ void P_LoadBlockMap (int lump)
 	int		i;
 	int		count;
 
+#ifdef CD32X_PLUTEX
+	if (P_CartLevel(lump))
+		blockmaplump = (void *)P_CartLevel(lump);	/* big-endian, in place */
+	else
+#endif
 #ifdef CD32X
 	if (P_RomMap(lump))
 		blockmaplump = W_POINTLUMPNUM(lump);	/* big-endian, in place */
@@ -1002,6 +1048,159 @@ static void P_SortSegs(void)
 	}
 }
 
+#ifdef CD32X_PLUTEX
+/* PLUTEX (build.sh PLUTEX=1): the cart's memory is RAM (the RAM cart, the EverDrive's PSRAM), so the
+   68000 can write the game's own image while it runs. tools/make_cartblk.py moved the base game's
+   textures and flats that Plutonia never uses itself into one block at the IWAD's end (CARTBLK: its
+   offset and length), and tools/make_game.py --cart-iwad put Plutonia's pictures that go there in each
+   map's extra lumps, with CARTMAP (the first extra lump, big-endian: 'CMAP', count, then per lump its
+   place among the extras and its offset in the IWAD). Those are written into the block (the 68000's
+   command 16, src-md/crt0.s cart_write) and drawn from there like the base game's own; the others go
+   to RAM as before. A picture's size is its own (its header): a donor name of another size takes it
+   for the map. CARTREC says 'PLTX' while the block holds Plutonia's pictures; any other game puts the
+   block back first (PLUTONIA.WAD's CARTPOOL: its own bytes) - also after a reset, as the cart keeps
+   its memory. */
+#define PLUTEX_DIRTY 0x504C5458			/* 'PLTX' */
+static int8_t plutex_ok = -1;			/* -1: not looked yet, 0: no block, 1: the block */
+static uint32_t plutex_blk, plutex_blkiwad, plutex_blklen, plutex_recoff;
+static int plutex_cmap = -1;			/* CARTMAP's place among the extra lumps */
+static struct { VINT tex, w, h; } plutex_sized[MAX_AUX_TEXTURES];
+static VINT plutex_nsized;
+
+static uint32_t P_CartGet32(const uint8_t *b)
+{
+	return ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3];
+}
+
+static uint32_t P_CartGetLE32(const volatile uint8_t *b)
+{
+	return ((uint32_t)b[3] << 24) | ((uint32_t)b[2] << 16) | ((uint32_t)b[1] << 8) | b[0];
+}
+
+static uint32_t P_CartRecord(void)
+{
+	/* through the cache: the 68000 writes it */
+	return *(volatile uint32_t *)(0x22000000 + plutex_recoff);
+}
+
+static void P_CartInit(void)
+{
+	int l;
+	if (plutex_ok >= 0)
+		return;
+	plutex_ok = 0;
+	l = W_CheckNumForName("CARTBLK");
+	if (l < 0 || !W_IsIWad(l))
+		return;
+	{
+		const uint8_t *b = W_POINTLUMPNUM(l);
+		plutex_blkiwad = P_CartGet32(b);
+		plutex_blk = ((uintptr_t)I_WadBase() + plutex_blkiwad - 0x02000000) & 0x3FFFFF;
+		plutex_blklen = P_CartGet32(b + 4);
+	}
+	l = W_CheckNumForName("CARTREC");
+	if (l < 0 || !W_IsIWad(l))
+		return;
+	plutex_recoff = ((uintptr_t)W_POINTLUMPNUM(l) - 0x02000000) & 0x3FFFFF;
+	plutex_ok = 1;
+}
+
+static void P_CartMark(uint32_t v)
+{
+	volatile uint32_t *buf = (volatile uint32_t *)I_GetCDFileBuffer();
+	if (P_CartRecord() == v)
+		return;
+	buf[0] = v;
+	buf[1] = buf[2] = buf[3] = 0;
+	Mars_CartWrite(plutex_recoff, 16);
+}
+
+/* the block's own bytes back from PLUTONIA.WAD (CARTPOOL) */
+static void P_CartRestore(void)
+{
+	int len, off, n, i;
+	uint32_t pos = 0, size = 0;
+	const volatile uint8_t *b;
+
+	len = I_OpenCDFileByName("PLUTONIA.WAD", &off);
+	if (len <= 0)
+		return;
+	I_SeekCDFile(0, SEEK_SET);
+	if (I_ReadCDFile(12) < 0)
+		return;
+	b = I_GetCDFileBuffer();
+	n = P_CartGetLE32(b + 4);
+	i = P_CartGetLE32(b + 8);
+	if (n <= 0 || n > 4096)
+		return;
+	I_SeekCDFile(i, SEEK_SET);
+	if (I_ReadCDFile(n * 16) < 0)
+		return;
+	b = I_GetCDFileBuffer();
+	for (i = n - 1; i >= 0; i--) {
+		const volatile uint8_t *e = b + i * 16;
+		if (e[8] == 'C' && e[9] == 'A' && e[10] == 'R' && e[11] == 'T' && e[12] == 'P' && e[13] == 'O'
+			&& e[14] == 'O' && e[15] == 'L') {
+			pos = P_CartGetLE32(e);
+			size = P_CartGetLE32(e + 4);
+			break;
+		}
+	}
+	if (i < 0 || size != plutex_blklen)
+		return;
+	for (i = 0; i < (int)size; i += 0x8000) {
+		int c = size - i < 0x8000 ? size - i : 0x8000;
+		I_SeekCDFile(pos + i, SEEK_SET);
+		if (I_ReadCDFile(c) < 0)
+			return;
+		Mars_CartWrite(plutex_blk + i, c);
+	}
+	P_CartMark(0);
+	Mars_ClearCache();
+	Mars_CommSlaveClearCache();
+}
+
+/* the sizes the last map's pictures gave their donor names, back to the base game's */
+static void P_CartUnsize(void)
+{
+	while (plutex_nsized > 0) {
+		plutex_nsized--;
+		textures[plutex_sized[plutex_nsized].tex].width = plutex_sized[plutex_nsized].w;
+		textures[plutex_sized[plutex_nsized].tex].height = plutex_sized[plutex_nsized].h;
+	}
+}
+
+/* a picture's own size (its header) for every texture drawn from that lump */
+static void P_CartSize(int lumpnum2, const uint8_t *data)
+{
+	int n, w = (data[0] << 8) | data[1], h = (data[2] << 8) | data[3];
+	for (n = 0; n < numtextures; n++) {
+		if (textures[n].lumpnum != lumpnum2)
+			continue;
+		if (textures[n].width == w && textures[n].height == h)
+			continue;
+		if (plutex_nsized >= MAX_AUX_TEXTURES)
+			return;
+		plutex_sized[plutex_nsized].tex = n;
+		plutex_sized[plutex_nsized].w = textures[n].width;
+		plutex_sized[plutex_nsized].h = textures[n].height;
+		plutex_nsized++;
+		textures[n].width = w;
+		textures[n].height = h;
+	}
+}
+
+/* back to the game select screen (d_main.c): the block back if Plutonia had it, so the RAM cart's loader
+   finds the game as it put it there at the next start (a changed cart is copied again: a minute) */
+void P_CartLeave(void)
+{
+	P_CartInit();
+	if (plutex_ok > 0 && P_CartRecord() == PLUTEX_DIRTY)
+		P_CartRestore();
+}
+
+#endif
+
 /*
 =================
 =
@@ -1034,6 +1233,10 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 	P_InitThinkers ();
 
 	R_ClearTextures();
+#ifdef CD32X_PLUTEX
+	P_CartUnsize();
+	P_CartInit();
+#endif
 
 	if (!sky || !*sky) {
 		sky = "SKY1";
@@ -1045,6 +1248,13 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 	skycolormaps = NULL;
 
 	W_LoadPWAD(PWAD_CD);
+#ifdef CD32X_PLUTEX
+	/* another game while the block holds Plutonia's pictures: the block back first */
+	if (plutex_ok > 0 && P_CartRecord() == PLUTEX_DIRTY && W_CheckNumForName("CARTPOOL") < 0) {
+		P_CartRestore();
+		W_LoadPWAD(PWAD_CD);
+	}
+#endif
 
 	lumpnum = W_CheckNumForName(lumpname);
 	if (lumpnum < 0)
@@ -1072,6 +1282,61 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 
 	lumpnum = W_GetNumForName(lumpname);
 	}
+
+#ifdef CD32X_PLUTEX
+	/* CARTMAP and CARTDATA (the first extra lumps, tools/make_game.py --cart-iwad): CARTDATA is the cart
+	   block's picture for this map, written there now (one read from the CD); CARTMAP (big-endian: 'CMAP',
+	   count, then per piece: name[8], kind - 1 texture, 2 flat, 3 sky, 4 one of the map's own lumps -, its
+	   ML_xxx, its offset in the block, its size) says what is where: the map's read-only lumps are used
+	   in place (P_CartLevel), the pictures are set below with the RAM's */
+	D_memset(plutex_lvl, 0, sizeof(plutex_lvl));
+	plutex_lvlbase = -1;
+	plutex_cmap = -1;
+	if (plutex_ok > 0 && !romlevel)
+	{
+		int icm = -1, idata = -1;
+		/* this map's own first two extra lumps only: the list holds the next maps' lumps too */
+		for (i = 0; i < 2; i++)
+		{
+			lumpinfo_t *l = &li[ML_BLOCKMAP + 1 + i];
+			char name[9];
+			D_memcpy(name, l->name, 8);
+			name[0] = name[0] & ~0x80;
+			name[8] = 0;
+			if (i == 0 && l->size && !D_strcasecmp(name, "CARTMAP"))
+				icm = i;
+			else if (i == 1 && icm == 0 && l->size && !D_strcasecmp(name, "CARTDATA"))
+				idata = i;
+		}
+		if (icm >= 0 && idata >= 0 && (uint32_t)li[ML_BLOCKMAP + 1 + idata].size <= plutex_blklen)
+		{
+			const volatile uint8_t *cm = W_POINTLUMPNUM(lumpnum + ML_BLOCKMAP + 1 + icm);
+			uint32_t lvl[ML_BLOCKMAP + 1];
+			int e, cnt = P_CartGet32((const uint8_t *)cm + 4);
+			D_memset(lvl, 0, sizeof(lvl));
+			if (P_CartGet32((const uint8_t *)cm) == 0x434D4150)	/* 'CMAP' */
+			{
+				for (e = 0; e < cnt && e < MAX_AUX_TEXTURES; e++)
+				{
+					const volatile uint8_t *en = cm + 8 + e * 20;
+					int kind = (en[8] << 8) | en[9], ml = (en[10] << 8) | en[11];
+					uint32_t o = P_CartGet32((const uint8_t *)en + 12);
+					if (kind == 4 && ml >= ML_VERTEXES && ml <= ML_BLOCKMAP)
+						lvl[ml] = o + 1;
+				}
+				P_CartMark(PLUTEX_DIRTY);
+				W_ReadLumpToCart(lumpnum + ML_BLOCKMAP + 1 + idata, plutex_blk);
+				Mars_ClearCache();
+				for (e = 0; e <= ML_BLOCKMAP; e++)
+					if (lvl[e]) {
+						plutex_lvl[e] = (uint8_t *)I_WadBase() + plutex_blkiwad + lvl[e] - 1;
+						plutex_lvlbase = lumpnum;
+					}
+				plutex_cmap = icm;
+			}
+		}
+	}
+#endif
 
 #if defined(USE_SMALL_LUMPS) && defined(ENABLE_SSF_MAPPER)
 	if (W_IsIWad(lumpnum+ML_SEGS))
@@ -1113,7 +1378,11 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 
 	P_GroupLines ();
 
-	if (!romlevel)
+	if (!romlevel
+#ifdef CD32X_PLUTEX
+		&& !P_CartLevel(lumpnum+ML_SEGS)	/* sorted already */
+#endif
+		)
 		P_SortSegs();
 
 	if (netgame == gt_deathmatch)
@@ -1145,6 +1414,46 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 	{
 		boolean istexture = false;
 		boolean isflat = false;
+#ifdef CD32X_PLUTEX
+		boolean cartwrote = plutex_cmap >= 0;
+
+		/* the pictures in the cart block (CARTMAP, above) */
+		if (plutex_cmap >= 0)
+		{
+			const volatile uint8_t *cm = W_POINTLUMPNUM(lumpnum + ML_BLOCKMAP + 1 + plutex_cmap);
+			int e, cnt = P_CartGet32((const uint8_t *)cm + 4);
+			for (e = 0; e < cnt && e < MAX_AUX_TEXTURES; e++)
+			{
+				const volatile uint8_t *en = cm + 8 + e * 20;
+				char name[9];
+				int j, kind = (en[8] << 8) | en[9];
+				uint32_t o = P_CartGet32((const uint8_t *)en + 12), size = P_CartGet32((const uint8_t *)en + 16);
+				uint8_t *data = (uint8_t *)I_WadBase() + plutex_blkiwad + o;
+				for (j = 0; j < 8; j++)
+					name[j] = en[j];
+				name[8] = 0;
+				if (o + size > plutex_blklen)
+					continue;
+				if (kind == 1) {
+					j = R_CheckTextureNumForName(name);
+					if (j >= 0) {
+						int n, lumpnum2 = textures[j].lumpnum;
+						P_CartSize(lumpnum2, data);
+						for (n = 0; n < numtextures; n++)
+							if (textures[n].lumpnum == lumpnum2)
+								R_SetTextureData(&textures[n], data, size, true);
+					}
+				} else if (kind == 2) {
+					j = R_FlatNumForName(name);
+					if (j >= 0)
+						R_SetFlatData(j, data, size);
+				} else if (kind == 3) {
+					if (havesky && !D_strcasecmp(name, sky))
+						skytexturep = R_SkipJagObjHeader(data, size, 256, 128, &skyheader);
+				}
+			}
+		}
+#endif
 
 		for (i = 0; i < MAX_AUX_TEXTURES; i++)
 		{
@@ -1190,6 +1499,10 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 					data = Z_Malloc (l->size, PU_LEVEL);
 					W_ReadLump(lumpnum+k, data);
 					}
+#ifdef CD32X_PLUTEX
+					if (plutex_ok > 0 && !romlevel)
+						P_CartSize(lumpnum2, data);
+#endif
 					for (n = 0; n < numtextures; n++)
 					{
 						if (textures[n].lumpnum == lumpnum2)
@@ -1226,6 +1539,12 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 				continue;
 			}
 		}
+#ifdef CD32X_PLUTEX
+		if (cartwrote) {
+			Mars_ClearCache();
+			Mars_CommSlaveClearCache();
+		}
+#endif
 	}
 
 	W_LoadPWAD(PWAD_NONE);
@@ -1251,6 +1570,10 @@ D_printf ("P_SetupLevel(%s,%i)\n",lumpname,skill);
 		}
 	}
 
+#ifdef CD32X_PLUTEX
+	if (skytexturep)
+		skydepth = 3;	/* 8-bit unless its header says 4-bit (below), not the last map's */
+#endif
 	if (skyheader && BIGSHORT(skyheader->depth) == 2) {
 		// 4-bit sky has a custom colormap appended at the end of the file
 		skydepth = 2;

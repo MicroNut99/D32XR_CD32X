@@ -35,6 +35,19 @@ fi
 # PAIN=1 (build.sh): the Pain Elemental, from D32XR (viciious/d32xr 23-25 Oct 2026): info.c / info.h, p_enemy.c,
 # sounds.c / sounds.h, f_main.c (the cast); its sprites and sounds come from tools/make_pain.py
 [ -n "${PAIN:-}" ] && sed -i '1i #define CD32X_PAIN 1' "$B/info.h" "$B/info.c" "$B/sounds.h" "$B/sounds.c" "$B/p_enemy.c" "$B/f_main.c"
+# PLUTEX=1 (build.sh): Plutonia's pictures written into the IWAD's cart block when a map loads (p_setup.c,
+# w_wad.c, marshw.c Mars_CartWrite, src-md/crt0.s cart_write: the 68000's command 16)
+if [ -n "${PLUTEX:-}" ]; then
+  sed -i '1i #define CD32X_PLUTEX 1' "$B/doomdef.h" "$B/marshw.c"
+  sed -i '1i .equ CD32X_PLUTEX, 1' "$B/src-md/crt0.s"
+fi
+# CARTCD_ED=1 (build.sh CARTCD=1 PLUTEX=1): the cartridge for the Mega EverDrive PRO's SSF mode ("SEGA SSF",
+# its write bit for PLUTEX, the save in its save bank: crt0.s, src-md/crt0.s)
+[ -n "${CARTCD_ED:-}" ] && sed -i '1i .equ CARTCD_ED, 1' "$B/crt0.s" "$B/src-md/crt0.s"
+# CARTCD=1 PLUTEX=1 (build.sh): the 32X+CD cartridge reads up to 64 extra lumps per map, as the CD32X build
+# (p_setup.c MAX_AUX_TEXTURES; the cartridge build's 32 is enough for the plain PLUTONIA.WAD - 21 at most -,
+# not for PLUTEX's, whose planner allows 64): CD32X_AUX64
+[ -n "${CARTCD:-}" ] && [ -n "${PLUTEX:-}" ] && sed -i '1i #define CD32X_AUX64 1' "$B/p_setup.c"
 # DRAWDIST=far: the farther draw distance (r_phase1.c)
 [ "${DRAWDIST:-}" = far ] && sed -i '1i #define CD32X_DRAWDIST_FAR 1' "$B/r_phase1.c"
 # PRELOAD_H: the 68000's table of the WADs kept in the 16 MB cart (tools/make_preload.py)
@@ -52,13 +65,19 @@ fi
 # TEST_EXIT=1: emulator testing only - every level ends by itself after about 300 frames (the
 # intermission, the next map's loading screen)
 [ -n "${TEST_EXIT:-}" ] && sed -i 's|^\tgameaction = ga_nothing;$|&\n\t{ static int test_exit; if (++test_exit > 300) { test_exit = 0; G_ExitLevel(); } }|' "$B/p_tick.c"
+# TEST_WARP=n: emulator testing only - a game the title starts by itself (PLUTONIA, the SIGILs) starts at MAPn
+# (RunTitle's startmap; with TEST_EXIT: a run through the maps from there)
+[ -n "${TEST_WARP:-}" ] && sed -i "s/^\tstartmap = 1;\$/\tstartmap = $TEST_WARP;/" "$B/d_main.c"
+# TEST_SPECIAL=1: emulator testing only - the "unknown special" stop says the number first, and the sector
+[ -n "${TEST_SPECIAL:-}" ] && sed -i 's|"unknown special %i",sector->special);|"%i: unknown special, sector %i", sector->special, (int)(sector - sectors));|' "$B/p_spec.c"
 # TEST_WALLS=n TEST_PLANES=n: emulator testing only - other renderer limits (MAXWALLCMDS 165, MAXVISPLANES 32)
 [ -n "${TEST_WALLS:-}" ] && sed -i "s/^#define\tMAXWALLCMDS\t\t165/#define\tMAXWALLCMDS\t\t$TEST_WALLS/" "$B/r_local.h"
 [ -n "${TEST_PLANES:-}" ] && sed -i "s/^#define\tMAXVISPLANES\t32/#define\tMAXVISPLANES\t$TEST_PLANES/" "$B/r_local.h"
 cd "$B"
 OPTS=""; [ -n "${FIRE:-}" ] && OPTS="ENABLE_FIRE_ANIMATION=1 FIRE_TIME=470"
 env $OPTS "$@" \
-  make -j8 release ROOTDIR="$DK" GENDEV="$DK" TITLE="${TITLE:-Doom CD32X Fusion}" VERSION="${VERSION:-3.0}" > build.log 2>&1 \
+  make -j8 release ROOTDIR="$DK" GENDEV="$DK" TITLE="${TITLE:-Doom CD32X Fusion}" VERSION="${VERSION:-3.0}" \
+  ${CARTCD_ED:+"MAPPER=SEGA SSF"} > build.log 2>&1 \
   || { grep -n -i -B2 -A2 " error\|undefined ref" build.log | head -40; echo "*** game build failed (build/d32xr/build.log)"; exit 1; }
 cp D32XR.32x "$OUT"
 echo "game: $OUT ($(stat -c %s "$OUT") bytes)"

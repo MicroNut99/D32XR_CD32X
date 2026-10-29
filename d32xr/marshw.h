@@ -144,6 +144,9 @@ void Mars_SwapWordColumnWithMDVRAM(int c);
 
 int Mars_OpenCDFileByName(const char *name, int *poffset);
 void Mars_OpenCDFileByOffset(int length, int offset);
+#ifdef CD32X_PLUTEX
+void Mars_CartWrite(uint32_t cartoff, int len);
+#endif
 int Mars_ReadCDFile(int length);
 int Mars_SeekCDFile(int offset, int whence);
 void *Mars_GetCDFileBuffer(void) __attribute__((noinline));

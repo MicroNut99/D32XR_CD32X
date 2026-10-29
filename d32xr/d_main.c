@@ -977,6 +977,9 @@ D_printf("O_Init\n");
 	O_Init ();
 
 gameselect:
+#ifdef CD32X_PLUTEX
+	P_CartLeave();
+#endif
 	G_DeInit();
 
 	S_DeInitMusic();

@@ -854,6 +854,21 @@ int Mars_OpenCDFileByName(const char *name, int *poffset)
 	return *(int *)&MARS_SYS_COMM8;
 }
 
+#ifdef CD32X_PLUTEX
+/* PLUTEX (p_setup.c): the 68000 copies len bytes from the CD file buffer (the frame buffer) into
+   the cart at offset cartoff (command 16, src-md/crt0.s cart_write) */
+void Mars_CartWrite(uint32_t cartoff, int len)
+{
+	if (len <= 0)
+		return;
+	while (MARS_SYS_COMM0) {}
+	*(int *)&MARS_SYS_COMM8 = len;
+	*(int *)&MARS_SYS_COMM12 = cartoff;
+	MARS_SYS_COMM0 = 0x1000;
+	while (MARS_SYS_COMM0) {}
+}
+#endif
+
 void Mars_OpenCDFileByOffset(int length, int offset)
 {
 	CD32X_COUNT_READ();

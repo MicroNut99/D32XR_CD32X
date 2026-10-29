@@ -682,6 +682,42 @@ void * W_ReadLumpData_(int lump, const char *func, void *dest, boolean compresse
 	return dest;
 }
 
+#ifdef CD32X_PLUTEX
+/* PLUTEX (p_setup.c): a lump of the CD's PWAD into the cart at cartoff - read into the CD file buffer
+   (the frame buffer), copied there by the 68000 (Mars_CartWrite, src-md/crt0.s cart_write) */
+int W_ReadLumpToCart(int lump, uint32_t cartoff)
+{
+	wadfile_t *wad;
+	lumpinfo_t* l;
+	volatile int pos, len;
+
+	wad = W_GetWadForLump(lump);
+	if (lump < 0 || lump >= wad->firstlump+wad->numlumps)
+		I_Error ("W_ReadLumpToCart: %i", lump);
+	l = &wad->lumpinfo[lump-wad->firstlump];
+	pos = BIGLONG(l->filepos);
+	len = BIGLONG(l->size);
+#ifndef DISABLE_CDFS
+	if (wad->cdlength && !(l->name[0] & 0x80))
+	{
+		int o;
+		/* in pieces of 32 KB: the frame buffer holds the CD's data */
+		for (o = 0; o < len; o += 0x8000)
+		{
+			int c = len - o < 0x8000 ? len - o : 0x8000;
+			I_SeekCDFile(pos + o, SEEK_SET);
+			if (I_ReadCDFile(c) < 0)
+				I_Error("W_ReadLumpToCart: reading %d bytes failed", c);
+			Mars_CartWrite(cartoff + o, c);
+		}
+		return len;
+	}
+#endif
+	I_Error("W_ReadLumpToCart: %i is not on the CD", lump);
+	return 0;
+}
+#endif
+
 boolean W_IsIWad(int lump)
 {
 #ifndef DISABLE_CDFS

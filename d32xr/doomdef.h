@@ -764,6 +764,11 @@ void	*W_CacheLumpNum (int lump, int tag);
 void	*W_CacheLumpName (const char *name, int tag);
 
 boolean W_IsIWad(int lump);
+#ifdef CD32X_PLUTEX
+int W_ReadLumpToCart(int lump, uint32_t cartoff);
+void P_CartLeave(void);
+void Mars_CartWrite(uint32_t cartoff, int len);
+#endif
 boolean W_IsCompressed_(int lump, const char *func);
 
 const char *W_GetNameForNum (int lump);

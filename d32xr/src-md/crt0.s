@@ -602,7 +602,11 @@ no_cmd:
 .else
         dc.w    no_cmd - prireqtbl
 .endif
+.ifdef CD32X_PLUTEX
+        dc.w    cart_write - prireqtbl       /* 16: PLUTEX - the frame buffer into the cart */
+.else
         dc.w    no_cmd - prireqtbl
+.endif
         dc.w    no_cmd - prireqtbl
         dc.w    net_getbyte - prireqtbl
         dc.w    net_putbyte - prireqtbl
@@ -746,6 +750,20 @@ read_sram_cart:
 .endif
         bra.w   exit_rd_sram
 .endif
+.ifdef CARTCD_ED
+| CARTCD_ED (build.sh CARTCD=1 PLUTEX=1): the 32X+CD cartridge on the Mega EverDrive PRO in its SSF mode
+| ("SEGA SSF": the write bit PLUTEX needs).  The PRO takes no SRAM switch there, so the save is in its save
+| bank (bank 31, kept on its SD card, the header declaring save RAM) through CTRL1 (the window at
+| 0x080000), at piece 11's place as on the EDCD discs (ED-SAVE)
+        lea     0x080000+0xB000,a0
+        sh2_wait
+        set_rv
+        move.w  #0x8000,0xA130F0
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.b  0(a0,d0.l),d1
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+        bra.w   exit_rd_sram
+.endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   rd_msd_sram
 .ifdef ENABLE_SSF_MAPPER
@@ -847,6 +865,19 @@ write_sram_cart:
 .endif
         bra.w   exit_wr_sram
 .endif
+.ifdef CARTCD_ED
+| CARTCD_ED: the save bank (see read_sram)
+        lea     0x080000+0xB000,a0
+        sh2_wait
+        set_rv
+        move.w  #0x8000,0xA130F0
+        move.w  #31,0xA130F2        /* CTRL1 = bank 31 */
+        move.w  #0xA000,0xA130F0    /* the write bit on, for this store only */
+        move.b  d0,0(a0,d1.l)
+        move.w  #0x8000,0xA130F0    /* off */
+        move.w  #1,0xA130F2         /* CTRL1 = bank 1 again */
+        bra.w   exit_wr_sram
+.endif
 |        cmpi.w  #2,megasd_ok
 |        beq.b   wr_msd_sram
 .ifdef ENABLE_SSF_MAPPER
@@ -900,6 +931,55 @@ exit_wr_sram:
         move.w  #0,0xA15120         /* done */
         move.w  #0x2000,sr          /* enable ints */
         bra     main_loop
+
+.ifdef CD32X_PLUTEX
+| PLUTEX (build.sh PLUTEX=1, d32xr/p_setup.c): command 16 - COMM8 bytes the SH2 left in the frame buffer
+| (its CD file buffer) into the cart at offset COMM12: a Plutonia map's pictures into the IWAD's cart
+| block, the block's own bytes back, the block's record.  As the saves above: interrupts off, both SH2s
+| waiting in SDRAM (sh2_wait), RV = 1; the EverDrive's write bit on for the copy only.  Longs: the
+| block's pieces start at multiples of 16 (tools/make_game.py), so the rounding up stays in its piece.
+cart_write:
+        move.w  #0x2700,sr          /* disable ints */
+        move.l  0xA15128,d1         /* COMM8: the length */
+        move.l  0xA1512C,d0         /* COMM12: the offset in the cart */
+        sh2_wait
+        move.w  0xA15100,d2
+        eor.w   #0x8000,d2
+        move.w  d2,0xA15100         /* unset FM - the 68000 reads the frame buffer */
+        lea     MARS_FRAMEBUFFER,a1
+        movea.l d0,a0
+.ifdef CD32X
+        adda.l  #CD32X_CART,a0      /* the cart: 0x400000 (a CD boot), 0x000000 (the cartridge boot) */
+.endif
+        set_rv
+.ifdef CD32X_ED
+        move.w  #0xA000,0xA130F0    /* ED: the write bit on, for this copy only */
+.endif
+.ifdef CARTCD_ED
+        move.w  #0xA000,0xA130F0    /* the EverDrive PRO: the write bit on, for this copy only */
+.endif
+        addq.l  #3,d1
+        lsr.l   #2,d1               /* longs */
+        bra.b   2f
+1:
+        move.l  (a1)+,(a0)+
+2:
+        dbra    d1,1b
+.ifdef CD32X_ED
+        move.w  #0x8000,0xA130F0    /* off */
+.endif
+.ifdef CARTCD_ED
+        move.w  #0x8000,0xA130F0    /* off */
+.endif
+        clr_rv
+        move.w  0xA15100,d2
+        or.w    #0x8000,d2
+        move.w  d2,0xA15100         /* set FM - the SH2s have the frame buffer again */
+        sh2_cont
+        move.w  #0,0xA15120         /* done */
+        move.w  #0x2000,sr          /* enable ints */
+        bra     main_loop
+.endif
 
 .ifdef CD32X
 | CD32X: megasd.c is not linked (src-md/Makefile); its CD music calls are reached only when a

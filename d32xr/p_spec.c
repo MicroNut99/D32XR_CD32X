@@ -745,6 +745,16 @@ void P_PlayerInSpecialSector (player_t *player)
 			sector->special = 0;
 			S_StartSound(player->mo, sfx_secret);
 			break;
+#ifdef CD32X_PLUTEX
+		case 11:	/* EXIT SUPER DAMAGE (DOOM's E1M8): Plutonia's MAP11 has two such sectors, which */
+					/* stopped the game here with "unknown special 11" */
+			player->cheats &= ~CF_GODMODE;
+			if ((gametic != prevgametic) && !(gametic&0x1f))
+				P_DamageMobj (player->mo, NULL, NULL, 20);
+			if (player->health <= 10)
+				G_ExitLevel();
+			break;
+#endif
 			
 		default:
 			I_Error ("P_PlayerInSpecialSector: "

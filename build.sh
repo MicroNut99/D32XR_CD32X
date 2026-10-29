@@ -113,6 +113,22 @@ if [ -n "${CARTCD:-}" ]; then
     && { echo "*** CARTCD=1 is a version of its own: not with CART, EDCD, CART4, BRAMSAVE or ROMMAPS - stopping"; exit 1; }
   ED_TAG="_32XCD${ED_TAG}"
 fi
+# PLUTEX=1 (off by default; the owner, 28 Oct 2026: "Fix Plutonia's missing elements"): Plutonia's own walls,
+# floors and skies in place of the look-alikes. The cart's memory is RAM (the RAM cart, the EverDrive's PSRAM),
+# so the game writes its own image while it runs: the base game's textures and flats Plutonia never uses itself
+# are moved together into one block at the IWAD's end (tools/make_cartblk.py, about 270 KB), and each Plutonia
+# map's pictures that do not fit its RAM are written into that block from the disc when the map loads (the
+# 68000, src-md/crt0.s cart_write; d32xr/p_setup.c) and drawn from there. Any other game puts the block back
+# first (PLUTONIA.WAD carries its bytes: CARTPOOL) - also after a reset, as the cart keeps its memory.
+# With CARTCD=1: the cartridge is for the Mega EverDrive PRO in its SSF mode (its write bit; the save in its save
+# bank, as the EDCD discs) - CARTCD_ED. The names get _PLUTEX. Not with ROMMAPS (no Plutonia on that disc).
+if [ -n "${PLUTEX:-}" ]; then
+  [ -n "$ROMMAPS" ] && { echo "*** PLUTEX=1 is for the DOOM disc (Plutonia), not ROMMAPS - stopping"; exit 1; }
+  [ -f "$HERE/data/plutonia.wad" ] || { echo "*** PLUTEX=1 needs data/plutonia.wad - stopping"; exit 1; }
+  export PLUTEX
+  ED_TAG="${ED_TAG}_PLUTEX"
+  [ -n "${CARTCD:-}" ] && export CARTCD_ED=1
+fi
 # The override is DISC_NAME, NOT NAME: WSL exports NAME (the Windows machine's name) into every shell,
 # so ${NAME:-...} silently takes it - the 26 Oct 13:18 build wrote discs/Mumra/Mumra.cue on a host
 # called Mumra, with no EDCD tag on it at all.
@@ -157,6 +173,7 @@ if [ -f "$DATA/plutonia.wad" ] && [ -z "$ROMMAPS" ]; then
   PK="$(ls "$DATA"/hires/*.pk3 2>/dev/null | head -1)"; [ "${HIRES:-1}" = 0 ] && PK=""
   python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
           ${PK:+--hires "$PK"} ${PAIN:+--keep-pain} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
+          ${PLUTEX:+--cart-keep-out "$HERE/build/plutex_keep.txt"} \
           --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
     || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD failed"; exit 1; }
   tail -1 "$HERE/build/plutonia_log.txt"
@@ -236,6 +253,22 @@ if [ -n "${PAIN:-}" ]; then
     || { tail -5 "$HERE/build/cart4_log.txt"; echo "*** the IWAD with the Pain Elemental does not fit"; exit 1; }
   cat "$HERE/build/cart4_log.txt"
   IWAD="$HERE/build/cart4_iwad.wad"
+fi
+# PLUTEX=1 (above): the cart block in the game's IWAD, then PLUTONIA.WAD again with its pictures for the block
+# (the first PLUTONIA.WAD told which base textures and flats Plutonia uses itself: build/plutex_keep.txt)
+if [ -n "${PLUTEX:-}" ]; then
+  PLIMIT=$((0x400000 - 222 * 1024)); [ -n "${CART4:-}" ] && PLIMIT=$((0x3F0000 - 222 * 1024))
+  echo "==> PLUTEX: the cart block in the IWAD (tools/make_cartblk.py, limit $PLIMIT)"
+  python3 "$HERE/tools/make_cartblk.py" --iwad "$IWAD" --keep "$HERE/build/plutex_keep.txt" \
+          --out "$HERE/build/plutex_iwad.wad" --limit $PLIMIT || { echo "*** the cart block failed"; exit 1; }
+  IWAD="$HERE/build/plutex_iwad.wad"
+  echo "==> PLUTONIA.WAD with its pictures for the cart block (tools/make_game.py --cart-iwad)"
+  python3 "$HERE/tools/make_game.py" --game plutonia --pc "$DATA/plutonia.wad" --base "$DATA/doom32xf.wad" --fusion "$DATA/fusion" \
+          ${PK:+--hires "$PK"} ${PAIN:+--keep-pain} --budgets "${PLUT_BUDGETS:-$HERE/tools/plutonia_budgets.txt}" \
+          --cart-iwad "$IWAD" --out "$DISC/PLUTONIA.WAD" --report "$HERE/build/plutonia_report.txt" > "$HERE/build/plutonia_log.txt" \
+    || { tail -20 "$HERE/build/plutonia_log.txt"; echo "*** PLUTONIA.WAD (PLUTEX) failed"; exit 1; }
+  tail -1 "$HERE/build/plutonia_log.txt"
+  echo "    $(grep -oE '[0-9]+ substituted' "$HERE/build/plutonia_report.txt" | awk '{s+=$1} END {print s+0}') look-alikes left in all of Plutonia (build/plutonia_report.txt)"
 fi
 if [ -z "${CARTCD:-}" ]; then
 echo "==> preload (the WADs kept in the 16 MB cart, pages 2-6)"
